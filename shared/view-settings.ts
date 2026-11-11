@@ -1,0 +1,21 @@
+import { defineSettings } from "@getpaseo/plugin";
+import { z } from "zod";
+
+/** How the lists look. The daemon stores it, so it survives app restarts and is the same on every device. */
+export const viewSchema = z.object({
+  sort: z.enum(["spaces", "priority"]).catch("priority"),
+  collapsed: z.boolean().catch(false),
+  /** With several hosts: a section for each host, or one list with the host on each project. */
+  hosts: z.enum(["grouped", "combined"]).catch("combined"),
+});
+export type View = z.output<typeof viewSchema>;
+
+/** By default one list of all hosts by state: what needs you first, on any computer. */
+export const DEFAULT_VIEW: View = { sort: "priority", collapsed: false, hosts: "combined" };
+
+export const VIEW_SETTINGS = defineSettings({
+  id: "view",
+  scope: "host",
+  version: 1,
+  schema: viewSchema,
+});

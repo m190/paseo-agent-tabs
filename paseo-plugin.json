@@ -1,0 +1,9 @@
+{
+  "id": "agent-tabs",
+  "name": "Agent Tabs",
+  "description": "See which Claude Code or Codex tab needs you, on every Paseo host, on desktop and on the phone.",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.15.0 <0.16.0"
+  }
+}
