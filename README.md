@@ -1,5 +1,7 @@
 # Agent Tabs for Paseo
 
+![Agent Tabs in the Paseo sidebar](assets/sidebar.png)
+
 A [Paseo](https://paseo.sh) plugin that shows which Claude Code or Codex tab needs you, on every Paseo host, on desktop and on the phone.
 
 Paseo's own lists show Paseo agents. Many people run Claude Code and Codex in plain terminal tabs instead. Agent Tabs lists those tabs, one row per tab, with a state symbol in the style of [herdr](https://github.com/herdrdev/herdr):
@@ -13,6 +15,12 @@ Paseo's own lists show Paseo agents. Many people run Claude Code and Codex in pl
 | `·` | unknown: a plain shell, or an agent without hooks |
 
 It shows in the left sidebar, on an "Agents" board screen, in a right-side panel, and behind a header button in every workspace. You can open a tab, start a new one from a Paseo terminal profile, or close one. See [OVERVIEW.md](OVERVIEW.md) for every feature.
+
+![The agents board](assets/board.png)
+
+![Agent Tabs on the phone](assets/phone.png)
+
+The screenshots use demo projects and scripted agent screens.
 
 ## Install
 

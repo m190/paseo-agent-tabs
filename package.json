@@ -27,7 +27,8 @@
     "server/",
     "shared/",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "assets/"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
