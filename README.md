@@ -17,8 +17,10 @@ It shows in the left sidebar, on an "Agents" board screen, in a right-side panel
 ## Install
 
 ```sh
-paseo plugin add m190/paseo-agent-tabs
+paseo plugin add git:m190/paseo-agent-tabs
 ```
+
+The plugin needs no `npm install`: Paseo builds it, and React, React Native and the Paseo packages come from the host.
 
 Plugins must be on in `~/.paseo/config.json`: `"pluginsEnabled": true` at the top level. Then run `paseo daemon reload`.
 
@@ -34,7 +36,7 @@ Tested with Paseo 0.15.x on macOS, Linux (Raspberry Pi), the web app, the deskto
 
 The public plugin API does not give everything this plugin needs yet. So it uses some Paseo internals, and a new Paseo version can break it:
 
-- The terminal title and the agent activity come from Paseo's internal daemon client (`server/host-daemon.ts`).
+- The terminal title and the agent activity come from Paseo's internal daemon client (`server/host-daemon.ts`). Its types are copied into that file, because Paseo cannot resolve the client package when it builds a plugin from Git.
 - On web and desktop, a tab opens through the app's own navigation function, which the plugin finds in the app bundle (`client/navigation.ts`). On native apps it uses a `paseo://` link.
 
 ## Development

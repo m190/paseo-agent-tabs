@@ -1,30 +1,52 @@
 // Connection to this host's daemon with the host's own client packages.
 // Adapted from better-paseo (MIT), server/tasks/provider-subagents.ts.
-import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
-import type { TerminalProfile } from "@getpaseo/protocol/messages";
+import type {
+  CaptureTerminalResponse,
+  CloseItemsResponse,
+  CreateTerminalResponse,
+  ListTerminalsResponse,
+  MutableDaemonConfig,
+  ServerInfoStatusPayload,
+  SessionInboundMessage,
+  SessionOutboundMessage,
+  TerminalProfile,
+} from "@getpaseo/protocol/messages";
 import type * as TerminalProfiles from "@getpaseo/protocol/terminal-profiles";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
-export type HostDaemon = Pick<
-  DaemonClient,
-  | "close"
-  | "listTerminals"
-  | "fetchWorkspaces"
-  | "fetchAgents"
-  | "listProjects"
-  | "captureTerminal"
-  | "createTerminal"
-  | "closeItems"
-  | "getDaemonConfig"
-  | "getLastServerInfoMessage"
->;
+// The part of the host's internal DaemonClient (@getpaseo/client/internal/daemon-client) that this plugin calls,
+// copied from its 0.15 declarations. Paseo cannot resolve that package when it builds a plugin from Git.
+type Outbound<T extends SessionOutboundMessage["type"]> = Extract<SessionOutboundMessage, { type: T }> extends { payload: infer P } ? P : never;
+type Request<T extends SessionInboundMessage["type"]> = Omit<Extract<SessionInboundMessage, { type: T }>, "type" | "requestId">;
+
+export interface HostDaemon {
+  close(): Promise<void>;
+  listTerminals(cwd?: string, requestId?: string, options?: { workspaceId?: string }): Promise<ListTerminalsResponse["payload"]>;
+  fetchWorkspaces(options?: Request<"fetch_workspaces_request">): Promise<Outbound<"fetch_workspaces_response">>;
+  fetchAgents(options?: Request<"fetch_agents_request">): Promise<Outbound<"fetch_agents_response">>;
+  listProjects(options?: Request<"project.list.request">): Promise<Outbound<"project.list.response">>;
+  captureTerminal(
+    terminalId: string,
+    options?: { start?: number; end?: number; stripAnsi?: boolean },
+    requestId?: string,
+  ): Promise<CaptureTerminalResponse["payload"]>;
+  createTerminal(
+    cwd: string,
+    name?: string,
+    requestId?: string,
+    options?: { agentId?: string; command?: string; args?: string[]; workspaceId?: string; size?: { rows: number; cols: number } },
+  ): Promise<CreateTerminalResponse["payload"]>;
+  closeItems(input: { agentIds?: string[]; terminalIds?: string[] }, requestId?: string): Promise<CloseItemsResponse["payload"]>;
+  getDaemonConfig(requestId?: string): Promise<{ requestId: string; config: MutableDaemonConfig }>;
+  getLastServerInfoMessage(): ServerInfoStatusPayload | null;
+}
 export type { TerminalProfile };
 
-export type RawTerminal = Awaited<ReturnType<DaemonClient["listTerminals"]>>["terminals"][number];
-export type RawWorkspace = Awaited<ReturnType<DaemonClient["fetchWorkspaces"]>>["entries"][number];
-export type RawAgent = Awaited<ReturnType<DaemonClient["fetchAgents"]>>["entries"][number]["agent"];
-export type RawProject = Awaited<ReturnType<DaemonClient["listProjects"]>>["projects"][number];
+export type RawTerminal = Awaited<ReturnType<HostDaemon["listTerminals"]>>["terminals"][number];
+export type RawWorkspace = Awaited<ReturnType<HostDaemon["fetchWorkspaces"]>>["entries"][number];
+export type RawAgent = Awaited<ReturnType<HostDaemon["fetchAgents"]>>["entries"][number]["agent"];
+export type RawProject = Awaited<ReturnType<HostDaemon["listProjects"]>>["projects"][number];
 export type TerminalActivity = NonNullable<RawTerminal["activity"]>;
 
 /**
@@ -55,7 +77,7 @@ export async function connectHostDaemon(): Promise<HostDaemon> {
   const target = socketTarget(listen.trim());
   if (!target) throw new Error(`Unsupported daemon listen address: ${listen}`);
   const WebSocket = ws.default ?? ws.WebSocket;
-  const client: DaemonClient = new clientModule.DaemonClient({
+  const client: HostDaemon & { connect(): Promise<void> } = new clientModule.DaemonClient({
     url: target.url,
     clientId: "cid_agent_tabs",
     clientType: "cli",
