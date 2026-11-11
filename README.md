@@ -50,6 +50,7 @@ The public plugin API does not give everything this plugin needs yet. So it uses
 
 - The terminal title and the agent activity come from Paseo's internal daemon client (`server/host-daemon.ts`). Its types are copied into that file, because Paseo cannot resolve the client package when it builds a plugin from Git.
 - On web and desktop, a tab opens through the app's own navigation function, which the plugin finds in the app bundle (`client/navigation.ts`). On native apps it uses a `paseo://` link.
+- The highlighted row follows the tab that the app shows (`client/app/`). On web and desktop, the plugin reads the app's workspace layout store, which it finds in the app bundle. On native apps, it reads the app's saved copy of that store and the app's current route. When these reads fail, the highlight is the last row you opened.
 
 ## Development
 

@@ -1,79 +1,44 @@
 import { Linking, Platform } from "react-native";
 import { withTimeout } from "../shared/async";
-import type { Tab } from "../shared/tabs";
+import { sameTab } from "../shared/app-view";
 import { nextPadding, tabRoute } from "../shared/route";
+import type { Tab } from "../shared/tabs";
 import { setActiveTab } from "./active-tab";
+import { appModule } from "./app/bundle";
 import { getActive, linkPadding, replaceReopen } from "./hub";
 
 // This plugin typechecks without the DOM library. Declare only what this module uses.
 declare const window: {
   history: { pushState(state: unknown, unused: string, url: string): void };
   dispatchEvent(event: unknown): boolean;
-  addEventListener(type: "pointerdown" | "keydown", listener: () => void, options: { capture: boolean }): void;
-  removeEventListener(type: "pointerdown" | "keydown", listener: () => void, options: { capture: boolean }): void;
+  addEventListener(type: "pointerdown" | "keydown" | "popstate", listener: (event: { isTrusted: boolean }) => void, options: { capture: boolean }): void;
+  removeEventListener(type: "pointerdown" | "keydown" | "popstate", listener: (event: { isTrusted: boolean }) => void, options: { capture: boolean }): void;
 };
-declare const document: { scripts: ArrayLike<{ src: string }> };
 declare const PopStateEvent: new (type: string, init?: { state?: unknown }) => unknown;
-declare function fetch(url: string): Promise<{ ok: boolean; text(): Promise<string> }>;
 
 export interface Navigation {
   openWorkspace?(input: { workspaceId: string; serverId?: string }): void;
   openAgent?(input: { agentId: string; serverId?: string }): void;
 }
 
-const BUNDLE = /\/_expo\/static\/js\/web\/index-[^/]+\.js/;
-const LOOKUP_TIMEOUT_MS = 4_000;
 const CLICK_WAIT_MS = 1_500;
-const RETRY_MS = 30_000;
 
 // ---------- The app's in-place navigation (web and desktop) ----------
 //
 // A history change makes the app reset its whole navigation, so the window draws again. The app has its
-// own `navigateToHostWorkspaceRoute(route)` for this case. The plugin runs in the app's page, so it finds
-// that module in the app bundle and calls it through Metro's `__r`. This depends on the app's build: when
-// the lookup fails, the plugin uses the history change, which works but redraws the window.
+// own `navigateToHostWorkspaceRoute(route)` for this case, which the plugin finds in the app bundle (see
+// app/bundle.ts). When the lookup fails, the plugin uses the history change, which works but redraws the window.
 
 type RouteNavigator = (route: string) => void;
 
-let lookup: Promise<RouteNavigator | null> | null = null;
-let failedAt = 0;
+const routeNavigator = appModule<RouteNavigator>("navigateToHostWorkspaceRoute=function", (module) => {
+  const navigate = (module as { navigateToHostWorkspaceRoute?: unknown } | null)?.navigateToHostWorkspaceRoute;
+  return typeof navigate === "function" ? (route) => (navigate as RouteNavigator)(route) : null;
+});
 
-async function findNavigator(): Promise<RouteNavigator | null> {
-  const metroRequire = (globalThis as { __r?: (id: number) => unknown }).__r;
-  if (typeof metroRequire !== "function") return null;
-  const sources = Array.from(document.scripts, (script) => script.src).filter((src) => BUNDLE.test(src));
-  for (const src of sources) {
-    try {
-      const response = await fetch(src);
-      if (!response.ok) continue;
-      const code = await response.text();
-      const at = code.indexOf("navigateToHostWorkspaceRoute=function");
-      if (at < 0) continue;
-      const moduleId = /\},(\d+),\[[\d,]*\]\);/.exec(code.slice(at))?.[1];
-      if (!moduleId) continue;
-      const module = metroRequire(Number(moduleId)) as { navigateToHostWorkspaceRoute?: unknown } | null;
-      const navigate = module?.navigateToHostWorkspaceRoute;
-      if (typeof navigate === "function") return (route) => (navigate as RouteNavigator)(route);
-    } catch {
-      // Try the next bundle.
-    }
-  }
-  return null;
-}
-
-/** Starts the lookup, or starts it again some time after a failure. */
-export function prepareNavigation(): Promise<RouteNavigator | null> | null {
-  if (Platform.OS !== "web") return null;
-  if (!lookup || (failedAt > 0 && Date.now() - failedAt > RETRY_MS)) {
-    failedAt = 0;
-    lookup = withTimeout(findNavigator(), LOOKUP_TIMEOUT_MS, "Navigation lookup timed out")
-      .catch(() => null)
-      .then((navigate) => {
-        if (!navigate) failedAt = Date.now();
-        return navigate;
-      });
-  }
-  return lookup;
+/** Starts the lookup early, so the first click does not wait for it. */
+export function prepareNavigation(): void {
+  if (Platform.OS === "web") void routeNavigator();
 }
 
 function pushRoute(route: string): void {
@@ -82,8 +47,7 @@ function pushRoute(route: string): void {
 }
 
 async function navigateWeb(route: string): Promise<void> {
-  const pending = prepareNavigation();
-  const navigate = pending ? await withTimeout(pending, CLICK_WAIT_MS, "").catch(() => null) : null;
+  const navigate = await withTimeout(routeNavigator(), CLICK_WAIT_MS, "").catch(() => null);
   if (navigate) {
     try {
       navigate(route);
@@ -95,12 +59,18 @@ async function navigateWeb(route: string): Promise<void> {
   pushRoute(route);
 }
 
+// ---------- Opening a tab ----------
+//
 // The app removes a tab from a workspace when the tab's terminal (or agent) is not in the app's own list
 // for that workspace. The app refreshes that list only while it shows the workspace. So a link to a tab that
 // is new to the app (a tab the plugin just created, or one created on another device) opens the workspace,
-// and then the app removes the tab again and shows the tab that was open before. When the refreshed list
-// arrives, the app adds the tab in the background. The plugin cannot read the app's list, so it sends the
-// link again after the refresh. When the first link worked, the repeats only open the tab that is open.
+// and then the app removes the tab again and selects another tab. When the refreshed list arrives, the app
+// adds the tab in the background. The plugin cannot read the app's list, so it sends the link again after the
+// refresh. When the first link worked, the repeats only open the tab that is open.
+//
+// Known limit: in the native app, a tab that the user selects in the app's tab bar during the repeats
+// (2.5 s) is undone. The plugin cannot tell this choice from the stale list without an API of the app.
+
 const REOPEN_MS = [1_000, 2_500];
 
 export function openTab(serverId: string, tab: Tab, navigation?: Navigation): void {
@@ -108,31 +78,40 @@ export function openTab(serverId: string, tab: Tab, navigation?: Navigation): vo
   sendLink(serverId, tab, navigation);
   const timers = REOPEN_MS.map((delay, index) =>
     setTimeout(() => {
-      // Stop when the user opened another tab, or (on web) left the workspace.
+      // The highlight stays on this tab during the repeats (see active-tab.ts) unless the user closed it.
       const active = getActive();
-      if (active?.serverId === serverId && active.tab.id === tab.id) sendLink(serverId, tab, navigation);
+      if (active?.serverId === serverId && sameTab(active.tab, tab)) sendLink(serverId, tab, navigation);
       if (index === REOPEN_MS.length - 1) stopWatching();
     }, delay),
   );
-  // The plugin cannot see a tab change in the app's own tab bar, so the next click or key press stops the
-  // repeats (web and desktop). Without this, the repeats would switch back to this tab.
+  // On web and desktop, the next click, key press, or browser Back stops the repeats. Without this, the
+  // repeats would undo a tab that the user selects in the app's own tab bar.
   const cancel = () => {
     timers.forEach(clearTimeout);
     stopWatching();
   };
   const stopWatching = Platform.OS === "web" ? onNextInput(cancel) : () => {};
+  // A new click cancels the last one, also in another host's plugin copy.
   replaceReopen(cancel);
 }
 
-/** Calls `callback` at the next pointer press or key press in the page. Returns the cleanup. */
+/**
+ * Calls `callback` at the next pointer press, key press, or browser Back/Forward in the page. Returns the
+ * cleanup. The plugin's own history change (`pushRoute`) sends an untrusted popstate, which does not count.
+ */
 function onNextInput(callback: () => void): () => void {
   const options = { capture: true };
   const listener = () => callback();
+  const onHistory = (event: { isTrusted: boolean }) => {
+    if (event.isTrusted) callback();
+  };
   window.addEventListener("pointerdown", listener, options);
   window.addEventListener("keydown", listener, options);
+  window.addEventListener("popstate", onHistory, options);
   return () => {
     window.removeEventListener("pointerdown", listener, options);
     window.removeEventListener("keydown", listener, options);
+    window.removeEventListener("popstate", onHistory, options);
   };
 }
 

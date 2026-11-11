@@ -1,4 +1,5 @@
 import { errorMessage, withTimeout } from "../shared/async";
+import { sameTab } from "../shared/app-view";
 import { closeTabRpc, type Tab } from "../shared/tabs";
 import { getActive, setActive, sourceFor } from "./hub";
 
@@ -12,6 +13,6 @@ export async function closeTab(serverId: string, tab: Tab): Promise<void> {
   if (!source) throw new Error("This host is not connected");
   await withTimeout(source.rpc(closeTabRpc, { kind: tab.kind, id: tab.id }), CLOSE_TIMEOUT_MS, "The host did not answer");
   const active = getActive();
-  if (active?.serverId === serverId && active.tab.kind === tab.kind && active.tab.id === tab.id) setActive(null);
+  if (active?.serverId === serverId && sameTab(active.tab, tab)) setActive(null);
   source.pollNow();
 }

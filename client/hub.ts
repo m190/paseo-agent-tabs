@@ -24,12 +24,12 @@ export interface HostSource {
   pollNow(): void;
 }
 
-/** The tab the user opened last from the plugin. */
+/** The highlighted row: the tab that the app shows, or the user's last click (see active-tab.ts). */
 export interface ActiveTab {
   serverId: string;
   tab: Tab;
-  /** True once the app showed the tab's workspace; before that, the navigation is on its way. */
-  arrived: boolean;
+  /** Epoch ms of the plugin click that opened the tab. Unset when the app's own tab bar selected it. */
+  openedAt?: number;
 }
 
 interface Shared {
@@ -45,6 +45,8 @@ interface Shared {
   cancelReopen?: () => void;
   /** The last scroll position of each list, see scroll.ts. Optional: older copies do not set it. */
   scroll?: Map<string, number>;
+  /** The app's navigation (native app), see app/route.ts. */
+  navigation?: AppNavigation;
 }
 
 function shared(): Shared {
@@ -113,6 +115,20 @@ export function setActive(active: ActiveTab | null): void {
 
 export function subscribeActive(listener: () => void): () => void {
   return listen(shared().activeListeners, listener);
+}
+
+// ---------- App navigation (native app) ----------
+
+export interface AppNavigation {
+  getCurrentRoute(): { name?: string; params?: Record<string, unknown> } | undefined;
+}
+
+export function getAppNavigation(): AppNavigation | undefined {
+  return shared().navigation;
+}
+
+export function setAppNavigation(navigation: AppNavigation): void {
+  shared().navigation = navigation;
 }
 
 // ---------- Link padding ----------

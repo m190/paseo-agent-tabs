@@ -14,6 +14,7 @@ import { NewTabMenu } from "./new-tab";
 import { AgentRow, DisplayOptions, FloatingMenu, GroupHeader, HostHeader, IconButton } from "./rows";
 import { useCombined, useNow } from "./store";
 import { statusColor, SYMBOL, SYMBOL_SCALE, type Theme } from "./style";
+import { RouteAnchor } from "./app/route";
 
 // This plugin typechecks without the DOM library. Declare only what this module uses.
 interface KeyEvent {
@@ -248,6 +249,7 @@ export function BoardScreen({ theme, layout, navigation }: PluginScreenProps) {
       style={{ flex: 1, backgroundColor: theme.colors.surface0 }}
       onLayout={(event: { nativeEvent: { layout: { width: number } } }) => setWidth(event.nativeEvent.layout.width)}
     >
+      <RouteAnchor />
       {/* The filters and the icons stay at the top; only the cards scroll. The host's screen header already says "Agents". */}
       <View
         style={{ paddingHorizontal: padding, paddingTop: compact ? 6 : 16, paddingBottom: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: theme.colors.border }}

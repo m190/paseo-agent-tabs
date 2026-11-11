@@ -26,6 +26,7 @@ Terminal states come from Paseo's terminal agent hooks (`daemon.enableTerminalAg
 - Terminal screens: to find the state, the plugin server reads the last 120 rows of each Claude Code and Codex terminal every 2 seconds and looks at the bottom lines (background shells, dialogs, Codex's working line). While the board is open, it also reads the last lines of every terminal for the previews, every 3 seconds.
 - Paseo's lists: terminals, agents, workspaces and projects from the daemon of each host. The plugin uses the daemon client of the Paseo installation it runs in, because the plugin API does not give terminal titles and states yet.
 - The app's script bundle (web and desktop): to open a tab without reloading the window, the plugin loads the app's own script from the Paseo server and finds the app's navigation function in it. On iOS and Android it opens a `paseo://` link instead.
+- The app's selected tab: the highlighted row follows the tab that the app shows, also a tab you select in the app's own tab bar. On web and desktop, the plugin reads the app's workspace layout store (found in the same script bundle). On iOS and Android, it reads the app's saved copy of that store and the app's current route. The plugin only reads them and changes nothing.
 
 All of this stays between your Paseo daemons and your Paseo app. The plugin sends nothing to other services. New tabs start the terminal profiles from Paseo's settings, with the prompt you type.
 
@@ -33,4 +34,6 @@ All of this stays between your Paseo daemons and your Paseo app. The plugin send
 
 - Paseo's own project list stays visible. A plugin cannot filter it.
 - On phones, Paseo puts plugin header buttons into the "..." sheet.
-- The app keeps its own terminal list for each project and refreshes it only while it shows that project. A link to a tab that the app does not know yet opens the project, and then the app removes the tab again. So the plugin sends the link again after 1 and 2.5 seconds. The repeats stop when you open another tab, click or press a key.
+- The app keeps its own terminal list for each project and refreshes it only while it shows that project. A link to a tab that the app does not know yet opens the project, and then the app removes the tab again. So the plugin sends the link again after 1 and 2.5 seconds. The repeats stop when you open another tab or close the tab. On web and desktop, they also stop when you click, press a key, or go back.
+- On a phone, a tab that you select in the app's tab bar less than 2.5 seconds after you open a row goes back to that row (the repeats above).
+- On a phone, the app does not save its open sheets. While a sheet shows a tab, the highlight stays on the tab under the sheet.

@@ -1,63 +1,51 @@
 import { useSyncExternalStore } from "react";
-import { Platform } from "react-native";
-import { workspaceSegment } from "../shared/route";
+import { type AppView, nextHighlight, sameTab, type TabRef } from "../shared/app-view";
 import type { Tab } from "../shared/tabs";
-import { type ActiveTab, getActive, setActive, subscribeActive } from "./hub";
+import { watchAppView } from "./app/view";
+import { getActive, setActive, sourceFor, subscribeActive } from "./hub";
 import { tabKey } from "./model";
 
-// This plugin typechecks without the DOM library. Declare only what this module uses.
-declare const window: {
-  location: { pathname: string };
-  addEventListener(type: "popstate", listener: () => void): void;
-  removeEventListener(type: "popstate", listener: () => void): void;
-};
+// The highlighted row: the tab that the app shows (see app/view.ts), so a tab selected in the app's own tab
+// bar is highlighted too. When the plugin cannot read the app, the highlight is the user's last click in the
+// plugin. The value lives in the shared hub: the sidebar can show another host's copy after a navigation.
 
-const WATCH_MS = 500;
+/**
+ * How long the highlight stays on a clicked tab while the app still opens it. Keep it longer than the link
+ * repeats in navigation.ts: they stop when the highlight leaves their tab.
+ */
+const OPENING_MS = 4_000;
 
-// The tab the user opened from the plugin. The app gives plugins no way to read its selected tab, so the
-// plugin remembers its own last click. On web it forgets the tab when the user leaves that workspace.
-// The value lives in the shared hub: the sidebar can show another host's copy after a navigation.
-
-/** The tab the user opened last; null when opening it failed. */
+/** The tab the user opened from the plugin; null when opening it failed. */
 export function setActiveTab(serverId: string, tab: Tab | null): void {
-  if (!tab) {
-    setActive(null);
-    return;
+  setActive(tab ? { serverId, tab, openedAt: Date.now() } : null);
+}
+
+/** The plugin's row for a tab; null when the tab's host has no plugin, or the list does not have it yet. */
+function findTab(serverId: string, ref: TabRef): Tab | null {
+  for (const group of sourceFor(serverId)?.snapshot.groups ?? []) {
+    const tab = group.tabs.find((item) => sameTab(item, ref));
+    if (tab) return tab;
   }
-  // A click on a tab of the open workspace does not change the URL, so check it now.
-  const active: ActiveTab = { serverId, tab, arrived: false };
-  active.arrived = Platform.OS === "web" && inWorkspace(window.location.pathname, active);
-  setActive(active);
+  return null;
 }
 
-function inWorkspace(pathname: string, active: ActiveTab): boolean {
-  return pathname.includes(`/h/${encodeURIComponent(active.serverId)}/workspace/${workspaceSegment(active.tab.workspaceId)}`);
-}
-
-function onLocation(pathname: string): void {
+function follow(view: AppView): void {
+  // Another screen than a workspace keeps the highlight.
+  if (!view.shown) return;
+  const { serverId, ref } = view.shown;
+  const selected = view.tabOf(ref);
+  if (selected === undefined) return;
   const active = getActive();
-  if (!active) return;
-  const here = inWorkspace(pathname, active);
-  if (here && !active.arrived) active.arrived = true;
-  else if (!here && active.arrived) setActive(null);
+  const next = nextHighlight(serverId, selected, active, Date.now(), OPENING_MS);
+  if (next === undefined) return;
+  const tab = next ? findTab(serverId, next) : null;
+  if (tab) setActive({ serverId, tab });
+  else if (active) setActive(null);
 }
 
-/** Follows the URL on web and desktop. Returns the cleanup. */
+/** Makes the highlight follow the app's selected tab. Returns the cleanup. */
 export function watchActiveTab(): () => void {
-  if (Platform.OS !== "web") return () => {};
-  let last = "";
-  const check = () => {
-    const pathname = window.location.pathname;
-    if (pathname === last) return;
-    last = pathname;
-    onLocation(pathname);
-  };
-  const timer = setInterval(check, WATCH_MS);
-  window.addEventListener("popstate", check);
-  return () => {
-    clearInterval(timer);
-    window.removeEventListener("popstate", check);
-  };
+  return watchAppView(follow);
 }
 
 function activeKey(): string | null {

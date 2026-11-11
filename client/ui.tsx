@@ -18,6 +18,7 @@ import { Icon, ScrollView } from "@getpaseo/plugin/client/ui";
 import { useKeptScroll } from "./scroll";
 import { useCombined } from "./store";
 import { statusColor, SYMBOL, SYMBOL_SCALE, type Theme } from "./style";
+import { RouteAnchor } from "./app/route";
 
 export const BOARD_SCREEN_ID = "board";
 
@@ -104,6 +105,7 @@ export function AgentsSidebar({ theme, host, layout, openScreen, openPopover }: 
   const errorOnly = Boolean(error) && groups.length === 0;
   return (
     <View style={{ paddingHorizontal: 4, paddingBottom: collapsed ? 0 : 6 }}>
+      <RouteAnchor />
       <View style={{ flexDirection: "row", alignItems: "center", height: phone ? 44 : 36, paddingLeft: 12, paddingRight: 8, gap: 2 }}>
         <Pressable
           accessibilityRole="button"
@@ -174,6 +176,7 @@ export function AgentsPanel({ theme, host, layout, navigation, workspaceId }: Pl
   const current = { serverId: host.id, workspaceId };
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.surface0 }}>
+      <RouteAnchor />
       <ListOrNewTab
         theme={theme}
         navigation={navigation}
@@ -208,6 +211,7 @@ export function AgentsPopover({ theme, host, layout, close, workspaceId }: Plugi
   const current = { serverId: host.id, workspaceId };
   return (
     <View style={{ minWidth: 340 }}>
+      <RouteAnchor />
       <ListOrNewTab
         theme={theme}
         preset={current}
