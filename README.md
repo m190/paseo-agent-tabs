@@ -1,5 +1,7 @@
 # Agent Tabs for Paseo
 
+[![CI](https://github.com/m190/paseo-agent-tabs/actions/workflows/ci.yml/badge.svg)](https://github.com/m190/paseo-agent-tabs/actions/workflows/ci.yml)
+
 ![Agent Tabs in the Paseo sidebar](assets/sidebar.png)
 
 A [Paseo](https://paseo.sh) plugin that shows which Claude Code or Codex tab needs you, on every Paseo host, on desktop and on the phone.
