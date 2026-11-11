@@ -533,6 +533,8 @@ export function FloatingMenu({ theme, top, right, maxWidth, onClose, children }:
 }
 
 interface TabListViewProps extends TabRowsProps {
+  /** With the error, so the panel and the popover say when the list is old, as the sidebar does. */
+  combined: Pick<Combined, "groups" | "hosts" | "error">;
   /** Extra buttons in the header, before the display menu. */
   header?: ReactNode;
   /** Set for a popover; a panel fills its space. */
@@ -546,6 +548,9 @@ export function TabListView({ header, maxHeight, ...rows }: TabListViewProps) {
   const [width, setWidth] = useState(0);
   const counts = countByStatus(combined.groups);
   const phone = usePhoneSize();
+  // With a list, an error only marks it as old; without one, the error is all there is to show.
+  const { error } = combined;
+  const errorOnly = Boolean(error) && combined.groups.length === 0;
   return (
     <View
       style={{ flex: maxHeight ? undefined : 1 }}
@@ -563,12 +568,21 @@ export function TabListView({ header, maxHeight, ...rows }: TabListViewProps) {
               </Text>
             ) : null,
           )}
+          {error && !errorOnly ? (
+            <Text accessibilityLabel={`Not updated: ${error}`} style={{ color: statusColor("blocked", theme), fontSize: 11 }}>
+              offline
+            </Text>
+          ) : null}
         </View>
         {header}
         <IconButton theme={theme} icon="Settings2" label="Display preferences" active={display} onPress={() => setDisplay(!display)} />
       </View>
       <ScrollView style={maxHeight ? { maxHeight } : { flex: 1 }} contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: 8 }}>
-        <TabRows {...rows} />
+        {errorOnly ? (
+          <Text style={{ color: statusColor("blocked", theme), fontSize: 11, padding: 12 }}>{error}</Text>
+        ) : (
+          <TabRows {...rows} />
+        )}
       </ScrollView>
       {display ? (
         <FloatingMenu theme={theme} top={phone ? 42 : 34} right={4} maxWidth={width - 8} onClose={() => setDisplay(false)}>

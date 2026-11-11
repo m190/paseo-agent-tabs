@@ -9,7 +9,7 @@ import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { Pressable, Text, useWindowDimensions, View } from "react-native";
 import type { Tab } from "../shared/tabs";
 import { useActiveKey } from "./active-tab";
-import { allTabs, ATTENTION, countByStatus, rollup, total, type WorkspaceTarget } from "./model";
+import { allTabs, ATTENTION, countByStatus, rollup, targetKey, total, type WorkspaceTarget } from "./model";
 import { type Navigation, openTab } from "./navigation";
 import { NewTabMenu } from "./new-tab";
 import { useCollapsed } from "./prefs";
@@ -61,6 +61,7 @@ function ListOrNewTab({ theme, navigation, preset, close, list }: {
   if (!newTab) return <>{list((target) => setNewTab({ target: target ?? preset }))}</>;
   return (
     <NewTabMenu
+      key={targetKey(newTab.target)}
       theme={theme}
       target={newTab.target}
       navigation={navigation}

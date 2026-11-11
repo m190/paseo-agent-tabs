@@ -31,7 +31,8 @@ function setSnapshot(source: HostSource, next: TabsSnapshot, last: { text: strin
 /**
  * Polls this copy's host and shares its list with the other copies. One poller for every view: it starts a
  * new request only after the previous one ended, so a request that never answers cannot pile up others;
- * after the timeout it reports the error and keeps the last list. Returns the source and the cleanup.
+ * after the timeout it reports the error and keeps the last list until the answer arrives. Returns the source
+ * and the cleanup.
  */
 export function startSource(rpc: Rpc): { source: HostSource; stop(): void } {
   let stopped = false;
@@ -43,12 +44,16 @@ export function startSource(rpc: Rpc): { source: HostSource; stop(): void } {
   const tick = async () => {
     try {
       pending ??= rpc(tabsRpc, {})
-        .then((result) => ({ ...result, loaded: true }))
+        .then((result) => {
+          const snapshot = { ...result, loaded: true };
+          // Also after the timeout: a slow host then still shows its list, and the answer clears the error.
+          if (!stopped) setSnapshot(source, snapshot, last);
+          return snapshot;
+        })
         .finally(() => {
           pending = null;
         });
-      const result = await withTimeout(pending, TIMEOUT_MS, "The plugin server did not answer");
-      if (!stopped) setSnapshot(source, result, last);
+      await withTimeout(pending, TIMEOUT_MS, "The plugin server did not answer");
     } catch (error) {
       if (!stopped) setSnapshot(source, { ...source.snapshot, error: errorMessage(error), loaded: true }, last);
     }

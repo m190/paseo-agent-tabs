@@ -19,6 +19,7 @@ class FakeDaemon {
   fail: Error | null = null;
   gate: Promise<void> | null = null;
   screens = new Map<string, string[]>();
+  serverId: string | null = "srv_test";
 
   async listTerminals() {
     this.listCalls += 1;
@@ -33,7 +34,7 @@ class FakeDaemon {
     return { projects: [{ projectId: "p1", projectKey: "remote:github.com/acme/project" }] };
   }
   getLastServerInfoMessage() {
-    return { serverId: "srv_test" };
+    return { serverId: this.serverId };
   }
   async fetchWorkspaces() {
     return {
@@ -175,4 +176,13 @@ test("the footer is found above the empty rows of a tall terminal", async () => 
   const tab = (await source([daemon]).list()).groups[0]?.tabs[0];
   assert.equal(tab?.status, "working");
   assert.equal(tab?.detail, "1 shell");
+});
+
+test("a daemon without a host id gives an error, not a list that the client would hide", async () => {
+  const daemon = new FakeDaemon();
+  daemon.terminals = [{ id: "t1", name: "Terminal 1", workspaceId: "w1" }];
+  daemon.serverId = null;
+  const list = await source([daemon]).list();
+  assert.match(list.error ?? "", /host id/);
+  assert.equal(list.groups.length, 0);
 });

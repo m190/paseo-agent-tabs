@@ -52,6 +52,11 @@ export interface WorkspaceTarget {
   workspaceId: string;
 }
 
+/** A React key for a new-tab menu: a new target starts a new menu, so it does not keep the old project. */
+export function targetKey(target?: WorkspaceTarget): string {
+  return target ? `${target.serverId}/${target.workspaceId}` : "pick";
+}
+
 export function tabKey(serverId: string, tab: Pick<Tab, "kind" | "id">): string {
   return `${serverId}/${tab.kind}:${tab.id}`;
 }

@@ -7,7 +7,7 @@ import { PREVIEW_BATCH, previewRpc, type Tab, type TabStatus } from "../shared/t
 import { useActiveKey } from "./active-tab";
 import { closeTab } from "./close";
 import { sourceFor } from "./hub";
-import { agentCounts, countByStatus, entryKey, formatAge, hostSections, orderedEntries, PRIORITY, startsGroup, type TabEntry, tabKey, total, type WorkspaceTarget } from "./model";
+import { agentCounts, countByStatus, entryKey, formatAge, hostSections, orderedEntries, PRIORITY, startsGroup, type TabEntry, tabKey, targetKey, total, type WorkspaceTarget } from "./model";
 import { openTab } from "./navigation";
 import { useHostMode, useSort } from "./prefs";
 import { NewTabMenu } from "./new-tab";
@@ -67,12 +67,19 @@ function usePreviews(entries: readonly TabEntry[], lines: number): Record<string
     .map((entry) => `${entry.group.serverId} ${entry.tab.id}`)
     .join("\n");
   useEffect(() => {
-    if (!wanted) return;
     const byHost = new Map<string, string[]>();
-    for (const pair of wanted.split("\n")) {
+    const keep = new Set<string>();
+    for (const pair of wanted ? wanted.split("\n") : []) {
       const [serverId, id] = pair.split(" ") as [string, string];
       byHost.set(serverId, [...(byHost.get(serverId) ?? []), id]);
+      keep.add(tabKey(serverId, { kind: "terminal", id }));
     }
+    // Forget the screens of closed tabs, so a board that stays open does not keep them all.
+    setPreviews((previous) => {
+      const kept = Object.entries(previous).filter(([key]) => keep.has(key));
+      return kept.length === Object.keys(previous).length ? previous : Object.fromEntries(kept);
+    });
+    if (!wanted) return;
     let stopped = false;
     const timers = new Set<ReturnType<typeof setTimeout>>();
     // One loop per host, so a slow host does not hold back the previews of the others.
@@ -290,6 +297,7 @@ export function BoardScreen({ theme, layout, navigation }: PluginScreenProps) {
         {newTab ? (
           <View style={{ borderRadius: 10, borderWidth: 1, borderColor: theme.colors.border, maxWidth: 520 }}>
             <NewTabMenu
+              key={targetKey(newTab.target)}
               theme={theme}
               target={newTab.target}
               navigation={navigation}

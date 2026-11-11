@@ -116,8 +116,11 @@ export class TabSource {
       const tabs = [...terminalTabs, ...agents.map((agent) => this.agentTab(agent))];
       this.forgetClosed(tabs);
       await this.ensureWorkspaces(daemon, tabs);
+      // The client sorts lists by host, and drops a list without one; so this is an error the user must see.
+      const serverId = daemon.getLastServerInfoMessage()?.serverId;
+      if (!serverId) throw new Error("The daemon did not report its host id (Paseo version not supported?)");
       const list: TabList = {
-        serverId: daemon.getLastServerInfoMessage()?.serverId ?? null,
+        serverId,
         groups: groupTabs(tabs, (id) => this.info(id)),
         workspaces: sortWorkspaces([...this.workspaces.keys()].map((id) => this.info(id))),
         error: null,

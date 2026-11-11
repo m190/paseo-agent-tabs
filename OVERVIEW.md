@@ -1,6 +1,6 @@
 Agent Tabs shows every open terminal and agent tab in the style of [herdr](https://github.com/herdrdev/herdr): one row per tab, with herdr's state symbols and the agent name.
 
-With several hosts, install the plugin on each host. Every list then shows the tabs of all these hosts. The display menu (sliders icon) shows one list of all hosts (the default) or groups the tabs by host. The default sort is by state, so what needs you comes first on any computer. Line 2 of a row reads: agent · project · host. The symbol and its color give the state. A tap opens the tab on its own host. The sort and fold settings are saved on every host, so the list looks the same whichever host's screen is open.
+With several hosts, install the plugin on each host. Every list then shows the tabs of all these hosts. The display menu (sliders icon) shows one list of all hosts (the default) or groups the tabs by host. The default sort is by state, so what needs you comes first on any computer. Line 2 of a row reads: agent · project · host. The symbol and its color give the state. A tap opens the tab on its own host. A change of the sort or fold settings is also saved on the other hosts that are online, so the list looks the same whichever host's screen is open.
 
 ## Where it shows
 
@@ -17,9 +17,9 @@ The + icon opens a new tab: pick the project (also one without tabs; with severa
 
 ## States
 
-`×` blocked (needs input or permission), `◐` working, `✓` done and not seen yet, `○` idle, `·` unknown (a plain shell, or an agent without hooks). The colors are herdr's catppuccin colors.
+`×` blocked (needs input or permission), `◐` working, `✓` done and not seen yet, `○` idle, `›` a plain terminal with no agent. The colors are herdr's catppuccin colors.
 
-Terminal states come from Paseo's terminal agent hooks (`daemon.enableTerminalAgentHooks`). Claude Code shows blocked while its screen shows a question or permission dialog, because its hooks still report working then. Agents without hooks, such as Codex, show working while their title has a spinner. Codex also shows working while its screen shows "Working (…)" or "Waiting for background terminal (…)" above the prompt.
+Terminal states come from Paseo's terminal agent hooks (`daemon.enableTerminalAgentHooks`). Claude Code shows blocked while its screen shows a question or permission dialog, because its hooks still report working then. Agents without hooks, such as Codex, show working while their title has a spinner, and idle otherwise; they cannot show done. Codex also shows working while its screen shows "Working (…)" or "Waiting for background terminal (…)" above the prompt.
 
 ## Limits
 

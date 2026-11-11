@@ -9,6 +9,8 @@ import { getActive, linkPadding, replaceReopen } from "./hub";
 declare const window: {
   history: { pushState(state: unknown, unused: string, url: string): void };
   dispatchEvent(event: unknown): boolean;
+  addEventListener(type: "pointerdown" | "keydown", listener: () => void, options: { capture: boolean }): void;
+  removeEventListener(type: "pointerdown" | "keydown", listener: () => void, options: { capture: boolean }): void;
 };
 declare const document: { scripts: ArrayLike<{ src: string }> };
 declare const PopStateEvent: new (type: string, init?: { state?: unknown }) => unknown;
@@ -104,14 +106,34 @@ const REOPEN_MS = [1_000, 2_500];
 export function openTab(serverId: string, tab: Tab, navigation?: Navigation): void {
   setActiveTab(serverId, tab);
   sendLink(serverId, tab, navigation);
-  const timers = REOPEN_MS.map((delay) =>
+  const timers = REOPEN_MS.map((delay, index) =>
     setTimeout(() => {
       // Stop when the user opened another tab, or (on web) left the workspace.
       const active = getActive();
       if (active?.serverId === serverId && active.tab.id === tab.id) sendLink(serverId, tab, navigation);
+      if (index === REOPEN_MS.length - 1) stopWatching();
     }, delay),
   );
-  replaceReopen(() => timers.forEach(clearTimeout));
+  // The plugin cannot see a tab change in the app's own tab bar, so the next click or key press stops the
+  // repeats (web and desktop). Without this, the repeats would switch back to this tab.
+  const cancel = () => {
+    timers.forEach(clearTimeout);
+    stopWatching();
+  };
+  const stopWatching = Platform.OS === "web" ? onNextInput(cancel) : () => {};
+  replaceReopen(cancel);
+}
+
+/** Calls `callback` at the next pointer press or key press in the page. Returns the cleanup. */
+function onNextInput(callback: () => void): () => void {
+  const options = { capture: true };
+  const listener = () => callback();
+  window.addEventListener("pointerdown", listener, options);
+  window.addEventListener("keydown", listener, options);
+  return () => {
+    window.removeEventListener("pointerdown", listener, options);
+    window.removeEventListener("keydown", listener, options);
+  };
 }
 
 // In the Android app, a link with the same `open` value as the route already holds does nothing, so a second

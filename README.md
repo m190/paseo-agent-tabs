@@ -14,7 +14,9 @@ Paseo's own lists show Paseo agents. Many people run Claude Code and Codex in pl
 | `◐` | working, also while a background shell runs |
 | `✓` | done, and you did not look at the tab yet |
 | `○` | idle |
-| `·` | unknown: a plain shell, or an agent without hooks |
+| `›` | a plain terminal, with no agent in it |
+
+Exact states come from Paseo's agent hooks. An agent without hooks shows working while its title or screen shows work, and idle otherwise.
 
 It shows in the left sidebar, on an "Agents" board screen, in a right-side panel, and behind a header button in every workspace. You can open a tab, start a new one from a Paseo terminal profile, or close one. See [OVERVIEW.md](OVERVIEW.md) for every feature.
 

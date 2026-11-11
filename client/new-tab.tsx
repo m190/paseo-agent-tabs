@@ -14,8 +14,9 @@ import { statusColor, type Theme } from "./style";
 const CREATE_TIMEOUT_MS = 15_000;
 const NO_HOST = "This host is not connected";
 
-/** The profile list changes rarely: one request per host and app session. */
-const profileRequests = new Map<string, Promise<Profile[]>>();
+/** The profile list changes rarely, but a change in Paseo's settings must show the next time the menu opens. */
+const PROFILES_TTL_MS = 30_000;
+const profileRequests = new Map<string, { request: Promise<Profile[]>; at: number }>();
 
 function useProfiles(serverId: string | null): { profiles: Profile[] | null; error: string | null } {
   const [state, setState] = useState<{ profiles: Profile[] | null; error: string | null }>({ profiles: null, error: null });
@@ -23,11 +24,12 @@ function useProfiles(serverId: string | null): { profiles: Profile[] | null; err
     setState({ profiles: null, error: null });
     if (!serverId) return;
     let live = true;
-    let request = profileRequests.get(serverId);
+    const cached = profileRequests.get(serverId);
+    let request = cached && Date.now() - cached.at < PROFILES_TTL_MS ? cached.request : null;
     if (!request) {
       const source = sourceFor(serverId);
       request = source ? source.rpc(profilesRpc, {}).then((result) => result.profiles) : Promise.reject(new Error(NO_HOST));
-      profileRequests.set(serverId, request);
+      profileRequests.set(serverId, { request, at: Date.now() });
     }
     request.then(
       (profiles) => live && setState({ profiles, error: null }),
