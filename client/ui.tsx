@@ -15,6 +15,7 @@ import { NewTabMenu } from "./new-tab";
 import { useCollapsed } from "./prefs";
 import { DisplayOptions, Glyph, IconButton, TabListView, TabRows, usePhoneSize } from "./rows";
 import { Icon, ScrollView } from "@getpaseo/plugin/client/ui";
+import { useKeptScroll } from "./scroll";
 import { useCombined } from "./store";
 import { statusColor, SYMBOL, SYMBOL_SCALE, type Theme } from "./style";
 
@@ -89,6 +90,7 @@ export function AgentsSidebar({ theme, host, layout, openScreen, openPopover }: 
   const maxListHeight = phone ? Math.min(240, Math.round(windowHeight * 0.3)) : Math.max(160, Math.round(windowHeight * 0.45));
   const [listHeight, setListHeight] = useState(0);
   const overflows = listHeight > maxListHeight + 1;
+  const kept = useKeptScroll("sidebar");
   const counts = useMemo(() => countByStatus(groups), [groups]);
   const onOpen = useCallback((serverId: string, tab: Tab) => openTab(serverId, tab), []);
   const onNew = useCallback(
@@ -137,9 +139,13 @@ export function AgentsSidebar({ theme, host, layout, openScreen, openPopover }: 
       ) : (
         <>
           <ScrollView
+            {...kept}
             style={{ maxHeight: maxListHeight }}
             nestedScrollEnabled
-            onContentSizeChange={(_width: number, height: number) => setListHeight(height)}
+            onContentSizeChange={(width: number, height: number) => {
+              setListHeight(height);
+              kept.onContentSizeChange(width, height);
+            }}
           >
             <TabRows combined={combined} theme={theme} compact={layout.compact} activeKey={activeKey} onOpen={onOpen} onNew={onNew} />
           </ScrollView>

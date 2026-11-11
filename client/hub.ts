@@ -43,6 +43,8 @@ interface Shared {
   padding: Map<string, number>;
   /** Stops the repeated link of the last open, see navigation.ts. Optional: older copies do not set it. */
   cancelReopen?: () => void;
+  /** The last scroll position of each list, see scroll.ts. Optional: older copies do not set it. */
+  scroll?: Map<string, number>;
 }
 
 function shared(): Shared {
@@ -117,6 +119,14 @@ export function subscribeActive(listener: () => void): () => void {
 
 export function linkPadding(): Map<string, number> {
   return shared().padding;
+}
+
+// ---------- Scroll positions ----------
+
+export function scrollPositions(): Map<string, number> {
+  const state = shared();
+  state.scroll ??= new Map();
+  return state.scroll;
 }
 
 // ---------- Repeated open ----------
