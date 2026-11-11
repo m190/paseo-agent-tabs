@@ -42,7 +42,7 @@ Codex 0.167 and later runs its sessions in a shared `codex app-server` process b
 
 ## Compatibility
 
-Tested with Paseo 0.15.x on macOS, Linux (Raspberry Pi), the web app, the desktop app, and the Android app. The manifest accepts `>=0.15.0 <0.16.0`.
+Tested with Paseo 0.15.x on macOS, Linux (Raspberry Pi), the web app, the desktop app, and the Android app. The manifest accepts Paseo 0.15.0 and later.
 
 The public plugin API does not give everything this plugin needs yet. So it uses some Paseo internals, and a new Paseo version can break it:
 
