@@ -7,8 +7,10 @@ import { VIEW_SETTINGS } from "./shared/view-settings";
 
 export default function contribute(server: PluginServerContext) {
   server.registerSettings(VIEW_SETTINGS);
-  const source = new TabSource(connectHostDaemon);
-  const launcher = new TabLauncher(source, loadTerminalProfiles);
+  // The source finds the agent of a renamed profile through the launcher's cached profile list. The
+  // launcher is created next; the source calls it only when a list is requested.
+  const source: TabSource = new TabSource(connectHostDaemon, Date.now, () => launcher.terminalProfiles());
+  const launcher: TabLauncher = new TabLauncher(source, loadTerminalProfiles);
   server.handle(tabsRpc, () => source.list());
   server.handle(previewRpc, ({ terminalIds, lines }) => source.previews(terminalIds, lines));
   server.handle(profilesRpc, async () => ({ profiles: await launcher.profiles() }));

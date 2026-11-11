@@ -75,7 +75,8 @@ export class TabLauncher {
     return rules.resolveTerminalProfileLaunch(profile, prompt.trim());
   }
 
-  private async terminalProfiles(): Promise<readonly TerminalProfile[]> {
+  /** The terminal profiles from Paseo's settings, with Paseo's defaults; read again after 10 s. */
+  async terminalProfiles(): Promise<readonly TerminalProfile[]> {
     if (this.config && this.now() - this.config.at < CONFIG_TTL_MS) return this.config.profiles;
     const [{ config }, rules] = await Promise.all([this.source.run("getDaemonConfig", (daemon) => daemon.getDaemonConfig()), this.rules()]);
     const profiles = rules.resolveTerminalProfiles(config.terminalProfiles);

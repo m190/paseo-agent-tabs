@@ -2,7 +2,7 @@ import { errorMessage, mapLimit, withTimeout } from "../shared/async";
 import type { Tab, TabGroup, TabList, TabStatus, WorkspaceInfo } from "../shared/tabs";
 import { type HostDaemon, type RawAgent, type RawProject, type RawTerminal, type RawWorkspace } from "./host-daemon";
 import { trimPreview } from "./preview";
-import { agentName, agentStatus, cleanTitle, FOOTER_LINES, terminalStatus } from "./status";
+import { agentName, agentStatus, cleanTitle, FOOTER_LINES, type ProfileIdentity, terminalAgent, terminalStatus } from "./status";
 
 const CALL_TIMEOUT_MS = 5_000;
 const LIST_CACHE_MS = 1_000;
@@ -11,6 +11,9 @@ const PAGE = 200;
 const CAPTURE_CONCURRENCY = 4;
 // Rows read above the preview: the input box and footer, and the empty rows below them in a tall terminal.
 const CAPTURE_EXTRA_ROWS = 120;
+// A failed capture reuses the last good footer for this long, so one slow read does not change a Codex tab
+// (no hooks; its state comes from the screen) from working to idle.
+const FOOTER_STALE_MS = 10_000;
 
 interface Connection {
   generation: number;
@@ -35,6 +38,8 @@ export class TabSource {
   private workspacesAt = 0;
   private workspaceRefresh: Promise<void> | null = null;
   private seen = new Map<string, Seen>();
+  /** "terminal:<id>" -> the last footer that a capture read. */
+  private footers = new Map<string, { text: string; at: number }>();
   private listing: Promise<TabList> | null = null;
   private last: { list: TabList; at: number } | null = null;
   private lastGood: TabList | null = null;
@@ -42,6 +47,8 @@ export class TabSource {
   constructor(
     private readonly connect: () => Promise<HostDaemon>,
     private readonly now: () => number = Date.now,
+    /** The terminal profiles from Paseo's settings, to find the agent of a renamed profile. */
+    private readonly profiles: () => Promise<readonly ProfileIdentity[]> = async () => [],
   ) {}
 
   list(): Promise<TabList> {
@@ -104,14 +111,16 @@ export class TabSource {
       const connection = await this.daemon();
       generation = connection.generation;
       const daemon = connection.daemon;
-      const [{ terminals }, agents] = await Promise.all([
+      const [{ terminals }, agents, profiles] = await Promise.all([
         this.call(daemon.listTerminals(), "listTerminals"),
         this.openAgents(daemon),
+        // Without the settings, the agent comes from the terminal name, as before.
+        this.profiles().catch(() => []),
       ]);
       const terminalTabs = await mapLimit(
         terminals.filter((terminal) => terminal.workspaceId),
         CAPTURE_CONCURRENCY,
-        (terminal) => this.terminalTab(daemon, terminal),
+        (terminal) => this.terminalTab(daemon, terminal, profiles),
       );
       const tabs = [...terminalTabs, ...agents.map((agent) => this.agentTab(agent))];
       this.forgetClosed(tabs);
@@ -204,11 +213,11 @@ export class TabSource {
     return workspaceInfo(workspaceId, workspace, workspace ? this.colorKeys.get(workspace.projectId) : undefined);
   }
 
-  private async terminalTab(daemon: HostDaemon, terminal: RawTerminal): Promise<Tab> {
-    const agent = agentName(terminal.name);
+  private async terminalTab(daemon: HostDaemon, terminal: RawTerminal, profiles: readonly ProfileIdentity[]): Promise<Tab> {
+    const agent = terminalAgent(terminal.name, profiles);
     const rows = FOOTER_LINES[agent];
     const footer = rows ? await this.footer(daemon, terminal.id, rows) : null;
-    const { status, detail } = terminalStatus({ name: terminal.name, title: terminal.title, activity: terminal.activity, footer });
+    const { status, detail } = terminalStatus({ name: terminal.name, agent, title: terminal.title, activity: terminal.activity, footer });
     return {
       id: terminal.id,
       kind: "terminal",
@@ -238,11 +247,15 @@ export class TabSource {
 
   /** The last `rows` non-empty rows of the screen, joined. */
   private async footer(daemon: HostDaemon, terminalId: string, rows: number): Promise<string | null> {
+    const key = `terminal:${terminalId}`;
     try {
       const capture = await this.call(daemon.captureTerminal(terminalId, { start: -CAPTURE_EXTRA_ROWS, stripAnsi: true }), "capture");
-      return capture.lines.filter((line) => line.trim() !== "").slice(-rows).join(" ");
+      const text = capture.lines.filter((line) => line.trim() !== "").slice(-rows).join(" ");
+      this.footers.set(key, { text, at: this.now() });
+      return text;
     } catch {
-      return null;
+      const last = this.footers.get(key);
+      return last && this.now() - last.at < FOOTER_STALE_MS ? last.text : null;
     }
   }
 
@@ -261,6 +274,7 @@ export class TabSource {
   private forgetClosed(tabs: readonly Tab[]): void {
     const open = new Set(tabs.map((tab) => `${tab.kind}:${tab.id}`));
     for (const key of this.seen.keys()) if (!open.has(key)) this.seen.delete(key);
+    for (const key of this.footers.keys()) if (!open.has(key)) this.footers.delete(key);
   }
 }
 

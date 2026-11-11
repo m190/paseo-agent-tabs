@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { agentName, agentStatus, cleanTitle, terminalStatus } from "../server/status";
+import { agentName, agentStatus, cleanTitle, profileAgent, terminalAgent, terminalStatus } from "../server/status";
 
 const idle = { state: "idle" as const, changedAt: 1 };
 const working = { state: "working" as const, changedAt: 1 };
@@ -103,4 +103,19 @@ test("Claude's usual footer and other agents' text are not a dialog", () => {
   const typed = "❯ tell me what Esc to cancel means ──── ⏵⏵ bypass permissions on";
   assert.equal(terminalStatus({ name: "Claude Code", title: "x", activity: working, footer: typed }).status, "working");
   assert.equal(terminalStatus({ name: "Codex", title: "x", activity: working, footer: "Esc to cancel" }).status, "working");
+});
+
+test("the agent of a profile comes from its command, icon or id before its name", () => {
+  assert.equal(profileAgent({ id: "review", name: "Review", command: "/opt/homebrew/bin/codex" }), "codex");
+  assert.equal(profileAgent({ id: "mine", name: "My helper", command: "claude" }), "claude");
+  assert.equal(profileAgent({ id: "yolo", name: "Fast", command: "npx", icon: "codex" }), "codex");
+  assert.equal(profileAgent({ id: "claude-plan", name: "Plan", command: "env" }), "claude");
+  assert.equal(profileAgent({ id: "aider", name: "Aider", command: "aider" }), "aider");
+});
+
+test("a terminal takes the agent of the profile with its name, else the name", () => {
+  const profiles = [{ id: "review", name: "Review", command: "codex" }];
+  assert.equal(terminalAgent("Review", profiles), "codex");
+  assert.equal(terminalAgent("Claude Code", profiles), "claude");
+  assert.equal(terminalAgent("Terminal 2", profiles), "shell");
 });

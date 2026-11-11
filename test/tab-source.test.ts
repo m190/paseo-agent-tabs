@@ -186,3 +186,33 @@ test("a daemon without a host id gives an error, not a list that the client woul
   assert.match(list.error ?? "", /host id/);
   assert.equal(list.groups.length, 0);
 });
+
+const codexWorkingScreen = ["output", "• Working (12s • esc to interrupt)", "", "› Ask Codex to do anything", "", "  gpt-5.5 high · ~/repo"];
+
+test("a renamed Codex profile still gets Codex's screen rules", async () => {
+  const daemon = new FakeDaemon();
+  daemon.terminals = [{ id: "t1", name: "Review", workspaceId: "w1", title: "Review", activity: null }];
+  daemon.screens.set("t1", codexWorkingScreen);
+  const profiles = async () => [{ id: "review", name: "Review", command: "/opt/homebrew/bin/codex" }];
+  const tab = (await new TabSource(async () => daemon as unknown as HostDaemon, () => 1_000, profiles).list()).groups[0]?.tabs[0];
+  assert.equal(tab?.agent, "codex");
+  assert.equal(tab?.status, "working");
+  // Without the profile list, the name is all there is: an unknown agent without hooks is idle.
+  const plain = (await source([daemon]).list()).groups[0]?.tabs[0];
+  assert.equal(plain?.agent, "review");
+  assert.equal(plain?.status, "idle");
+});
+
+test("a failed capture keeps the last screen for a short time", async () => {
+  const daemon = new FakeDaemon();
+  daemon.terminals = [{ id: "t1", name: "Codex", workspaceId: "w1", title: "fix bug", activity: null }];
+  daemon.screens.set("t1", codexWorkingScreen);
+  let now = 1_000;
+  const tabs = source([daemon], () => now);
+  assert.equal((await tabs.list()).groups[0]?.tabs[0]?.status, "working");
+  daemon.screens.delete("t1"); // the next captures fail
+  now += 5_000;
+  assert.equal((await tabs.list()).groups[0]?.tabs[0]?.status, "working");
+  now += 10_000;
+  assert.equal((await tabs.list()).groups[0]?.tabs[0]?.status, "idle");
+});

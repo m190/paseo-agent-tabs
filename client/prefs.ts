@@ -1,6 +1,6 @@
 import { settingsRpc } from "@getpaseo/plugin";
 import { useSettings } from "@getpaseo/plugin/client";
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { DEFAULT_VIEW, type View, VIEW_SETTINGS } from "../shared/view-settings";
 import { getSources, type HostSource } from "./hub";
 import { ownSource } from "./store";
@@ -50,22 +50,51 @@ function saveOnOtherHosts(values: View): void {
   }
 }
 
+// A change that this host has not saved yet: made before the settings loaded, or a save that failed (for
+// example because another device saved first). It is saved when the settings are (again) ready.
+let unsaved = false;
+let failedSaves = 0;
+const MAX_SAVE_TRIES = 3;
+
+const useViewSettings = () => useSettings(VIEW_SETTINGS);
+type SettingsState = ReturnType<typeof useViewSettings>;
+
+function saveOwn(state: SettingsState): void {
+  if (state.status !== "ready") {
+    unsaved = true;
+    return;
+  }
+  unsaved = false;
+  const patch = pending;
+  void state.save({ ...state.values, ...patch }, state.revision).then((ok) => {
+    if (ok) {
+      failedSaves = 0;
+      // Drop the keys this save stored, unless the user changed them again meanwhile.
+      setPending(Object.fromEntries(Object.entries(pending).filter(([key, value]) => patch[key as keyof View] !== value)));
+    } else if (++failedSaves < MAX_SAVE_TRIES) {
+      unsaved = true; // tried again with the next revision
+    } else {
+      // Give up, so the stored value (also a change from another device) shows again.
+      failedSaves = 0;
+      setPending({});
+    }
+  });
+}
+
 function useViewValue<K extends keyof View>(key: K): [View[K], (next: View[K]) => void] {
-  const state = useSettings(VIEW_SETTINGS);
+  const state = useViewSettings();
   const override = usePending();
   const saved = state.status === "ready" ? state.values : DEFAULT_VIEW;
   const value = (key in override ? override[key] : saved[key]) as View[K];
+  const revision = state.status === "ready" ? state.revision : null;
+  useEffect(() => {
+    if (unsaved && state.status === "ready") saveOwn(state);
+    // The state object changes on every render; the status and the revision say when a save can run.
+  }, [state.status, revision]);
   const set = (next: View[K]) => {
-    const patch = { ...pending, [key]: next };
-    setPending(patch);
-    saveOnOtherHosts({ ...saved, ...patch });
-    if (state.status !== "ready") return;
-    void state.save({ ...saved, ...patch }, state.revision).then((ok) => {
-      if (ok && pending[key] === next) {
-        const { [key]: _done, ...rest } = pending;
-        setPending(rest);
-      }
-    });
+    setPending({ ...pending, [key]: next });
+    saveOnOtherHosts({ ...saved, ...pending });
+    saveOwn(state);
   };
   return [value, set];
 }

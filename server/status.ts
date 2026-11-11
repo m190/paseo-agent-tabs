@@ -36,6 +36,33 @@ export function agentName(profileName: string): string {
   return name.split(/\s+/)[0] ?? name;
 }
 
+/** Agents whose screens the plugin reads; other agents rely on hooks and titles only. */
+const KNOWN_AGENTS = ["claude", "codex"] as const;
+
+/** The parts of a Paseo terminal profile that name its agent. */
+export interface ProfileIdentity {
+  id: string;
+  name: string;
+  command: string;
+  icon?: string;
+}
+
+/**
+ * The agent of a terminal profile. The name is the user's label ("Review" can run Codex), so the command,
+ * the icon and the id come first.
+ */
+export function profileAgent(profile: ProfileIdentity): string {
+  const command = (profile.command.split(/[\\/]/).pop() ?? "").toLowerCase();
+  const hints = [command, (profile.icon ?? "").toLowerCase(), profile.id.toLowerCase()];
+  return KNOWN_AGENTS.find((agent) => hints.some((hint) => hint.startsWith(agent))) ?? agentName(profile.name);
+}
+
+/** The agent of a terminal: Paseo names a terminal after the profile that started it. */
+export function terminalAgent(terminalName: string, profiles: readonly ProfileIdentity[]): string {
+  const profile = profiles.find((candidate) => candidate.name === terminalName);
+  return profile ? profileAgent(profile) : agentName(terminalName);
+}
+
 /** The title without the agent's status decoration. */
 export function cleanTitle(title: string | null | undefined, fallback: string): string {
   const text = (title ?? "").replace(LEADING_GLYPH, "").replace(ACTION_REQUIRED, "").trim();
@@ -45,6 +72,8 @@ export function cleanTitle(title: string | null | undefined, fallback: string): 
 export interface TerminalSignals {
   /** The terminal profile name, for example "Claude Code". */
   name: string;
+  /** The agent, when the profile is known; otherwise it comes from the name. */
+  agent?: string;
   title?: string | null;
   /** The state from the agent hooks; null when no hook reports for this terminal. */
   activity?: TerminalActivity | null;
@@ -66,8 +95,8 @@ function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
-export function terminalStatus({ name, title, activity, footer }: TerminalSignals): TerminalStatus {
-  const agent = agentName(name);
+export function terminalStatus({ name, agent: knownAgent, title, activity, footer }: TerminalSignals): TerminalStatus {
+  const agent = knownAgent ?? agentName(name);
   const text = title ?? "";
   const reason = activity?.attentionReason ?? null;
   const shells = agent === "claude" ? backgroundShells(footer) : 0;
