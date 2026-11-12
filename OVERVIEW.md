@@ -21,6 +21,7 @@ See which Claude Code or Codex tab needs you. One row per tab, with a state symb
 - Sort by state (what needs you first) or by project. Click a project name to fold it. Blocked and done tabs stay visible in a folded project.
 - Use "+" to start a new tab from a Paseo terminal profile.
 - Close a tab with × (or a long press on a phone).
+- Choose the preview size on the board: off, 4, 8 or 16 lines, or auto (fewer lines for more cards).
 - Use the keyboard on the board: j/k, enter, 1-9, a/b/w/d/i, s.
 
 With several hosts, install the plugin on each one. You then get one list of the tabs of all hosts.

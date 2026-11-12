@@ -2,6 +2,7 @@ import { Icon, ScrollView } from "@getpaseo/plugin/client/ui";
 import { Fragment, type ReactNode, useEffect, useState } from "react";
 import { Pressable, Text, useWindowDimensions, View } from "react-native";
 import type { Tab, TabStatus, WorkspaceInfo } from "../shared/tabs";
+import type { View as ViewSettings } from "../shared/view-settings";
 import {
   ATTENTION,
   type Combined,
@@ -20,7 +21,7 @@ import {
   type WorkspaceTarget,
 } from "./model";
 import { useFolding } from "./folding";
-import { useHostMode, useSort } from "./prefs";
+import { useHostMode, usePreviewSize, useSort } from "./prefs";
 import { closeTab, errorMessage } from "./close";
 import { useCombined, useNow } from "./store";
 import { projectColor, SHELL_SYMBOL, statusColor, SYMBOL, SYMBOL_SCALE, type Theme } from "./style";
@@ -176,8 +177,8 @@ export function SortChoice({ theme, onChoose }: { theme: Theme; onChoose?: () =>
 
 const HOST_ICON: Record<HostMode, string> = { grouped: "Server", combined: "Rows3" };
 const HOST_TEXT: Record<HostMode, { label: string; help: string }> = {
-  grouped: { label: "Group by host", help: "A section for each computer" },
-  combined: { label: "One list", help: "All computers together" },
+  grouped: { label: "Group by host", help: "A section for each host" },
+  combined: { label: "One list", help: "All hosts in one list" },
 };
 
 /** How the lists show the tabs of several hosts, for the display menus. */
@@ -374,12 +375,14 @@ export function GroupHeader({ group, theme, current, showHost, folded, onFold, o
   /** Shows a "+" that opens a new tab in this workspace. */
   onNew?: (target: WorkspaceTarget) => void;
 }) {
+  // A phone gets the size of a row's line 2: Paseo's own project names are larger there too.
+  const phone = usePhoneSize();
   const label = (
     <>
-      <ProjectBadge workspace={group} size={14} />
+      <ProjectBadge workspace={group} size={phone ? 16 : 14} />
       <Text
         numberOfLines={1}
-        style={{ flexShrink: 1, fontSize: 11, fontWeight: "700", color: current ? theme.colors.foreground : theme.colors.foregroundMuted }}
+        style={{ flexShrink: 1, fontSize: phone ? 13 : 11, fontWeight: "700", color: current ? theme.colors.foreground : theme.colors.foregroundMuted }}
       >
         {groupLabel(group)}
         {showHost ? <Text style={{ fontWeight: "400", color: theme.colors.foregroundMuted }}>{` · ${group.hostLabel}`}</Text> : null}
@@ -387,7 +390,7 @@ export function GroupHeader({ group, theme, current, showHost, folded, onFold, o
       {folded ? (
         <>
           <AttentionCounts counts={countByStatus([group])} theme={theme} />
-          <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>{group.tabs.length}</Text>
+          <Text style={{ color: theme.colors.foregroundMuted, fontSize: phone ? 13 : 11 }}>{group.tabs.length}</Text>
         </>
       ) : null}
       {onFold ? <Icon name={folded ? "ChevronRight" : "ChevronDown"} size={12} color={theme.colors.foregroundMuted} /> : null}
@@ -551,20 +554,78 @@ export function TabRows({ combined, theme, compact, activeKey, current, onOpen, 
   );
 }
 
-/** The display choices: sort, and with several hosts the host grouping. For the display menus. */
-export function DisplayOptions({ theme, manyHosts, onChoose }: { theme: Theme; manyHosts: boolean; onChoose?: () => void }) {
+const PREVIEW_CHOICES: readonly { value: ViewSettings["preview"]; label: string; help: string }[] = [
+  { value: "off", label: "Off", help: "No preview" },
+  { value: "4", label: "4", help: "4 lines" },
+  { value: "8", label: "8", help: "8 lines" },
+  { value: "16", label: "16", help: "16 lines" },
+  { value: "auto", label: "Auto", help: "16 lines for a few cards, 8 for more, 4 for many" },
+];
+
+/** The preview size of the board, as one row of chips, so the menu stays short on a phone. */
+function PreviewChoice({ theme }: { theme: Theme }) {
+  const [value, setValue] = usePreviewSize();
+  const phone = usePhoneSize();
+  return (
+    <View style={{ flexDirection: "row", gap: 6, paddingHorizontal: 10, paddingVertical: 4 }}>
+      {PREVIEW_CHOICES.map((choice) => {
+        const selected = choice.value === value;
+        return (
+          <Pressable
+            key={choice.value}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: selected }}
+            accessibilityLabel={`Preview: ${choice.help}`}
+            onPress={() => setValue(choice.value)}
+            hitSlop={4}
+            style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => ({
+              minWidth: 36,
+              paddingHorizontal: 8,
+              paddingVertical: phone ? 8 : 4,
+              borderRadius: 6,
+              borderWidth: 1,
+              alignItems: "center",
+              borderColor: selected ? theme.colors.accent : theme.colors.border,
+              backgroundColor: selected || pressed || hovered ? theme.colors.surface2 : "transparent",
+            })}
+          >
+            <Text style={{ color: selected ? theme.colors.foreground : theme.colors.foregroundMuted, fontSize: phone ? 14 : 12 }}>{choice.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
+ * The display choices for the display menus: fold all (by project), the sort, the host grouping with several
+ * hosts, and the preview size on the board.
+ */
+export function DisplayOptions({ theme, manyHosts, preview, onChoose }: {
+  theme: Theme;
+  manyHosts: boolean;
+  /** Shows the preview size: only the board has previews. */
+  preview?: boolean;
+  onChoose?: () => void;
+}) {
   const heading = (text: string) => (
     <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11, paddingHorizontal: 10, paddingTop: 4, paddingBottom: 2 }}>{text}</Text>
   );
   return (
     <View style={{ gap: 2 }}>
+      <FoldChoice theme={theme} onChoose={onChoose} />
       {heading("Sort")}
       <SortChoice theme={theme} onChoose={onChoose} />
-      <FoldChoice theme={theme} onChoose={onChoose} />
       {manyHosts ? (
         <>
           {heading("Hosts")}
           <HostChoice theme={theme} onChoose={onChoose} />
+        </>
+      ) : null}
+      {preview ? (
+        <>
+          {heading("Preview lines")}
+          <PreviewChoice theme={theme} />
         </>
       ) : null}
     </View>
@@ -649,7 +710,12 @@ export function TabListView({ header, maxHeight, ...rows }: TabListViewProps) {
         {header}
         <IconButton theme={theme} icon="Settings2" label="Display preferences" active={display} onPress={() => setDisplay(!display)} />
       </View>
-      <ScrollView style={maxHeight ? { maxHeight } : { flex: 1 }} contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: 8 }}>
+      {/* nestedScrollEnabled: on Android the list scrolls also inside the app's scrolling sheet. */}
+      <ScrollView
+        style={maxHeight ? { maxHeight } : { flex: 1 }}
+        nestedScrollEnabled
+        contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: 8 }}
+      >
         {errorOnly ? (
           <Text style={{ color: statusColor("blocked", theme), fontSize: 11, padding: 12 }}>{error}</Text>
         ) : (

@@ -11,7 +11,7 @@ Paseo's own lists show Paseo agents. Many people run Claude Code and Codex in pl
 | Symbol | State |
 | --- | --- |
 | `×` | blocked: a question, a permission dialog, or Codex "Action Required" |
-| `◐` | working, also while a background shell runs |
+| `◐` | working. A Claude Code row also shows its running background shells, for example "1 shell", in every state |
 | `✓` | done, and you did not look at the tab yet |
 | `○` | idle |
 | `›` | a plain terminal, with no agent in it |
@@ -44,7 +44,7 @@ Codex 0.167 and later runs its sessions in a shared `codex app-server` process b
 
 ## What it reads
 
-- Terminal screens: every 2 seconds, the plugin server reads the last 120 rows of each Claude Code and Codex terminal. It looks at the bottom lines for background shells, dialogs and Codex's working line. While the board is open, it also reads the last lines of every terminal for the previews, every 3 seconds.
+- Terminal screens: every 2 seconds, the plugin server reads the last 120 rows of each Claude Code and Codex terminal. It looks at the bottom lines for background shells, dialogs and Codex's working line. While the board is open, it also reads the last lines of every terminal for the previews, every 3 seconds, unless the previews are off.
 - Paseo's lists: terminals, agents, workspaces and projects from the daemon of each host.
 - The app's script bundle (web and desktop): the plugin finds the app's navigation function and workspace layout store in it. On iOS and Android it opens a `paseo://` link and reads the app's saved layout and current route.
 

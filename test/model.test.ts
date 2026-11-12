@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { agentCounts, combine, countByStatus, foldAll, groupKey, type HostGroup, hostSections, isHidden, listLayout, orderedEntries, rollup, startsGroup, tabKey, toggleFolded, total } from "../client/model";
+import { agentCounts, combine, countByStatus, foldAll, groupKey, type HostGroup, hostSections, isHidden, listLayout, orderedEntries, previewLines, autoPreviewLines, rollup, startsGroup, tabKey, toggleFolded, total } from "../client/model";
 import type { Tab, TabGroup, TabList, TabStatus } from "../shared/tabs";
 
 function tab(id: string, status: TabStatus, statusSince = 0): Tab {
@@ -109,8 +109,10 @@ test("the filter counts leave out plain shells", () => {
 
 test("the default view is one list of all hosts, by state; stored values without a field get the default", async () => {
   const { DEFAULT_VIEW, viewSchema } = await import("../shared/view-settings");
-  assert.deepEqual(DEFAULT_VIEW, { sort: "priority", collapsed: false, hosts: "combined", folded: [] });
-  assert.deepEqual(viewSchema.parse({ sort: "spaces" }), { sort: "spaces", collapsed: false, hosts: "combined", folded: [] });
+  assert.deepEqual(DEFAULT_VIEW, { sort: "priority", collapsed: false, hosts: "combined", folded: [], preview: "auto" });
+  assert.deepEqual(viewSchema.parse({ sort: "spaces" }), { sort: "spaces", collapsed: false, hosts: "combined", folded: [], preview: "auto" });
+  assert.equal(viewSchema.parse({ preview: 7 }).preview, "auto");
+  assert.equal(viewSchema.parse({ preview: "12" }).preview, "auto");
   assert.deepEqual(viewSchema.parse({ folded: "bad" }).folded, []);
 });
 
@@ -180,4 +182,19 @@ test("the layout with a filter drops host sections without matching tabs and say
   assert.deepEqual(listLayout(groups, hosts, { ...options, filter: "blocked" }).sections.map((section) => section.host?.serverId), ["mac"]);
   assert.deepEqual(listLayout(groups, hosts, options).sections.map((section) => section.host?.serverId), ["mac", "pi"]);
   assert.equal(listLayout(groups, hosts, { ...options, filter: "unknown" }).empty, true);
+});
+
+test("preview lines: a fixed number, off, or the auto result", () => {
+  assert.equal(previewLines("off", 12), 0);
+  assert.equal(previewLines("16", 3), 16);
+  assert.equal(previewLines("auto", 11), 11);
+});
+
+test("auto preview lines: 16 for up to 2 lines of cards, 8 for up to 4, then 4", () => {
+  assert.equal(autoPreviewLines(2, 1), 16);
+  assert.equal(autoPreviewLines(4, 1), 8);
+  assert.equal(autoPreviewLines(6, 1), 4);
+  // Three columns: 6 cards are 2 lines.
+  assert.equal(autoPreviewLines(6, 3), 16);
+  assert.equal(autoPreviewLines(12, 3), 8);
 });

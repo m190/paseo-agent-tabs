@@ -209,8 +209,12 @@ export function AgentsPopover({ theme, host, layout, close, workspaceId }: Plugi
   const combined = useCombined();
   const activeKey = useActiveKey();
   const current = { serverId: host.id, workspaceId };
+  // On a phone the list is in the app's sheet. It must fit there with its header, also with large text, or
+  // the sheet scrolls and cuts the list. The desktop popover has a fixed size.
+  const windowHeight = useWindowDimensions().height;
+  const maxHeight = layout.compact ? Math.min(560, Math.round(windowHeight * 0.55)) : 520;
   return (
-    <View style={{ minWidth: 340 }}>
+    <View style={layout.compact ? undefined : { minWidth: 340 }}>
       <RouteAnchor />
       <ListOrNewTab
         theme={theme}
@@ -223,7 +227,7 @@ export function AgentsPopover({ theme, host, layout, close, workspaceId }: Plugi
             compact={layout.compact}
             activeKey={activeKey}
             current={current}
-            maxHeight={layout.compact ? 560 : 520}
+            maxHeight={maxHeight}
             onOpen={(serverId, tab) => {
               close();
               openTab(serverId, tab);

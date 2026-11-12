@@ -95,7 +95,7 @@ function Row({ theme, label, icon, leading, detail, disabled, onPress }: {
 
 export interface NewTabMenuProps {
   theme: Theme;
-  /** Preselects the project and its host (the computer that runs the tab); without it, the menu asks first. */
+  /** Preselects the project and its host (the host that runs the tab); without it, the menu asks first. */
   target?: WorkspaceTarget;
   navigation?: Navigation;
   /** Called after the new tab opened. */

@@ -105,5 +105,6 @@ export const useSort = () => useViewValue("sort");
 export const useCollapsed = () => useViewValue("collapsed");
 export const useHostMode = () => useViewValue("hosts");
 export const useFolded = () => useViewValue("folded");
+export const usePreviewSize = () => useViewValue("preview");
 /** True when the stored values have loaded. A change of a list (the folds) must wait for it, or it would replace the stored list. */
 export const useViewReady = () => useViewSettings().status === "ready";

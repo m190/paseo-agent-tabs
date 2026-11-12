@@ -1,7 +1,7 @@
 {
   "name": "paseo-agent-tabs",
   "private": true,
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "See which Claude Code or Codex tab needs you, on every Paseo host, on desktop and on the phone.",
   "license": "MIT",
   "repository": {

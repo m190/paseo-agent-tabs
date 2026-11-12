@@ -39,11 +39,12 @@ test("finished is done until a client shows the tab", () => {
   assert.equal(terminalStatus({ name: "Claude Code", title: "✳ x", activity: finished }).status, "done");
 });
 
-test("a background shell keeps Claude working, with a detail", () => {
+test("a background shell is only a detail: the hooks decide the state (a dev server runs on after the turn)", () => {
   assert.deepEqual(terminalStatus({ name: "Claude Code", title: "✳ x", activity: idle, footer: claudeFooter }), {
-    status: "working",
+    status: "idle",
     detail: "1 shell",
   });
+  assert.equal(terminalStatus({ name: "Claude Code", title: "✳ x", activity: finished, footer: claudeFooter }).status, "done");
   assert.equal(terminalStatus({ name: "Claude Code", title: "✳ x", activity: finished, footer: "· 3 shells" }).detail, "3 shells");
 });
 

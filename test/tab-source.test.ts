@@ -174,7 +174,8 @@ test("the footer is found above the empty rows of a tall terminal", async () => 
   daemon.terminals = [{ id: "t1", name: "Claude Code", workspaceId: "w1", title: "✳ x", activity: { state: "idle", changedAt: 1 } }];
   daemon.screens.set("t1", ["output", "────", "❯", "────", "  ~/repo", "  ⏵⏵ bypass permissions on · 1 shell", ...Array(40).fill("")]);
   const tab = (await source([daemon]).list()).groups[0]?.tabs[0];
-  assert.equal(tab?.status, "working");
+  // The detail shows that the footer was found; a background shell does not change the state.
+  assert.equal(tab?.status, "idle");
   assert.equal(tab?.detail, "1 shell");
 });
 

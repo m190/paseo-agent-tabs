@@ -7,9 +7,9 @@ import { PREVIEW_BATCH, previewRpc, type TabStatus } from "../shared/tabs";
 import { useActiveKey } from "./active-tab";
 import { closeTab } from "./close";
 import { sourceFor } from "./hub";
-import { agentCounts, countByStatus, entryKey, formatAge, listLayout, PRIORITY, type TabEntry, tabKey, targetKey, total, type WorkspaceTarget } from "./model";
+import { agentCounts, countByStatus, entryKey, autoPreviewLines, formatAge, listLayout, previewLines, PRIORITY, type TabEntry, tabKey, targetKey, total, type WorkspaceTarget } from "./model";
 import { openTab } from "./navigation";
-import { useHostMode, useSort } from "./prefs";
+import { useHostMode, usePreviewSize, useSort } from "./prefs";
 import { NewTabMenu } from "./new-tab";
 import { AgentRow, DisplayOptions, FloatingMenu, GroupHeader, HostHeader, IconButton } from "./rows";
 import { useFolding } from "./folding";
@@ -60,6 +60,8 @@ interface PreviewState {
   /** Epoch ms of the last successful read. */
   at: number;
 }
+
+const NO_ENTRIES: readonly TabEntry[] = [];
 
 function usePreviews(entries: readonly TabEntry[], lines: number): Record<string, PreviewState> {
   const [previews, setPreviews] = useState<Record<string, PreviewState>>({});
@@ -197,10 +199,13 @@ export function BoardScreen({ theme, layout, navigation }: PluginScreenProps) {
   const counts = useMemo(() => countByStatus(groups), [groups]);
   // The filter chips leave out plain shells, so "unknown" shows only for agents without a known state.
   const chipCounts = useMemo(() => agentCounts(groups), [groups]);
-  const previews = usePreviews(entries, compact ? 6 : 8);
+  const columns = compact ? 1 : width >= 1180 ? 3 : width >= 760 ? 2 : 1;
+  const [previewSetting] = usePreviewSize();
+  const lines = previewLines(previewSetting, autoPreviewLines(entries.length, columns));
+  // Without a preview the board reads no terminal screens.
+  const previews = usePreviews(lines > 0 ? entries : NO_ENTRIES, Math.max(1, lines));
   // The selection follows its tab when the list changes; it falls back to the first tab.
   const selectedIndex = Math.max(0, entries.findIndex((entry) => entryKey(entry) === selectedKey));
-  const columns = compact ? 1 : width >= 1180 ? 3 : width >= 760 ? 2 : 1;
   const cardWidth: `${number}%` = columns === 1 ? "100%" : `${Math.floor(100 / columns) - 1}%`;
 
   const open = (entry: TabEntry) => openTab(entry.group.serverId, entry.tab, navigation);
@@ -364,9 +369,11 @@ export function BoardScreen({ theme, layout, navigation }: PluginScreenProps) {
                       onClose={() => closeTab(group.serverId, tab)}
                       alwaysShowClose
                     />
-                    <Pressable onPress={() => open(entry)} accessibilityLabel={`Open ${tab.title}`}>
-                      <Preview preview={previews[key]} now={now} theme={theme} compact={compact} />
-                    </Pressable>
+                    {lines > 0 ? (
+                      <Pressable onPress={() => open(entry)} accessibilityLabel={`Open ${tab.title}`}>
+                        <Preview preview={previews[key]} now={now} theme={theme} compact={compact} />
+                      </Pressable>
+                    ) : null}
                   </View>
                 );
               })}
@@ -378,7 +385,7 @@ export function BoardScreen({ theme, layout, navigation }: PluginScreenProps) {
       {/* The display menu floats over the cards, under its icon. */}
       {display ? (
         <FloatingMenu theme={theme} top={toolbarHeight - 4} right={padding} maxWidth={width - 2 * padding} onClose={closeDisplay}>
-          <DisplayOptions theme={theme} manyHosts={hosts.length > 1} onChoose={closeDisplay} />
+          <DisplayOptions theme={theme} manyHosts={hosts.length > 1} preview onChoose={closeDisplay} />
         </FloatingMenu>
       ) : null}
     </View>

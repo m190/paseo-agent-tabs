@@ -12,7 +12,7 @@ export type SortMode = View["sort"];
 export type HostMode = View["hosts"];
 export type Counts = Record<TabStatus, number>;
 
-/** A Paseo host (computer) with the plugin. */
+/** A Paseo host (a daemon) with the plugin. */
 export interface HostInfo {
   serverId: string;
   label: string;
@@ -272,6 +272,19 @@ function sectionItems(entries: readonly TabEntry[], { sort, folded, activeKey }:
     if (!isHidden(entry, sort, folded)) items.push({ kind: "row", key: entryKey(entry), entry });
   });
   return items;
+}
+
+/** Auto preview lines: long previews for a few lines of cards, short ones for many. */
+export function autoPreviewLines(cards: number, columns: number): number {
+  const rows = Math.ceil(cards / Math.max(1, columns));
+  return rows <= 2 ? 16 : rows <= 4 ? 8 : 4;
+}
+
+/** The preview lines on the board for a setting; 0 means no preview. `auto` is the result of autoPreviewLines. */
+export function previewLines(setting: View["preview"], auto: number): number {
+  if (setting === "off") return 0;
+  if (setting === "auto") return auto;
+  return Number(setting);
 }
 
 export function formatAge(since: number, now: number): string {

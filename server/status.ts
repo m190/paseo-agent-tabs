@@ -9,8 +9,8 @@ const SPINNER = /^[⠀-⣿◐-◓]/u;
 const LEADING_GLYPH = /^[⠀-⣿◐-◓✳✱✻✢✶✽·•*]\s+/u;
 // Codex blinks "[ ! ]" and "[ . ]" in its title while it waits for approval or input.
 const ACTION_REQUIRED = /^\[\s*[!.]\s*\]\s*Action Required(?:\s*\|\s*)?/i;
-// Claude Code's footer counts running background commands: "· 1 shell ·". Its "← 2 agents" also counts
-// finished agents, so it is not a sign of work.
+// Claude Code's footer counts running background commands: "· 1 shell ·". The row shows the count, but it is
+// not a state: a dev server runs on after the turn. Its "← 2 agents" also counts finished agents.
 const BACKGROUND_SHELLS = /(?:^|·)\s*(\d+)\s+shells?\b/u;
 // Codex shows "• Working (21m 58s • esc to interrupt) · 1 background terminal" above its prompt while a turn
 // runs. Its hooks often do not reach Paseo (see OVERVIEW.md), and its title has no spinner then.
@@ -111,9 +111,7 @@ export function terminalStatus({ name, agent: knownAgent, title, activity, foote
   // 2. The hooks report a question or permission request. For Claude Code this reason comes only from the
   //    idle_prompt reminder (the prompt waited about 60 s), so it is handled as "done" below.
   if (reason === "needs_input" && agent !== "claude") return result("blocked");
-  // 3. The turn ended, but a background command still runs; the agent continues when it ends.
-  if (shells > 0) return result("working");
-  // 3b. Codex says on screen that its turn runs.
+  // 3. Codex says on screen that its turn runs.
   if (codexWorking) return result("working");
   // 4. Finished, and no client has shown the tab since.
   if (reason === "finished" || reason === "needs_input") return result("done");
