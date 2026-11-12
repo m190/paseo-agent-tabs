@@ -7,11 +7,13 @@ export const viewSchema = z.object({
   collapsed: z.boolean().catch(false),
   /** With several hosts: a section for each host, or one list with the host on each project. */
   hosts: z.enum(["grouped", "combined"]).catch("combined"),
+  /** The folded projects of the "By project" sort, as `serverId/workspaceId`: they show only their header. */
+  folded: z.array(z.string()).catch([]),
 });
 export type View = z.output<typeof viewSchema>;
 
 /** By default one list of all hosts by state: what needs you first, on any computer. */
-export const DEFAULT_VIEW: View = { sort: "priority", collapsed: false, hosts: "combined" };
+export const DEFAULT_VIEW: View = { sort: "priority", collapsed: false, hosts: "combined", folded: [] };
 
 export const VIEW_SETTINGS = defineSettings({
   id: "view",

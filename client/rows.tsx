@@ -1,28 +1,35 @@
 import { Icon, ScrollView } from "@getpaseo/plugin/client/ui";
-import { Fragment, type ReactNode, useEffect, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Pressable, Text, useWindowDimensions, View } from "react-native";
 import type { Tab, TabStatus, WorkspaceInfo } from "../shared/tabs";
 import {
   ATTENTION,
   type Combined,
+  type Counts,
   countByStatus,
   total,
   entryKey,
   formatAge,
+  groupKey,
   groupLabel,
   type HostGroup,
   type HostInfo,
   type HostMode,
   hostSections,
+  foldAll,
+  isGroupFolded,
+  isHidden,
   isShell,
   orderedEntries,
   type SortMode,
   startsGroup,
+  tabKey,
+  toggleFolded,
   type WorkspaceTarget,
 } from "./model";
-import { useHostMode, useSort } from "./prefs";
+import { useFolded, useHostMode, useSort } from "./prefs";
 import { closeTab, errorMessage } from "./close";
-import { useNow } from "./store";
+import { useCombined, useNow } from "./store";
 import { projectColor, SHELL_SYMBOL, statusColor, SYMBOL, SYMBOL_SCALE, type Theme } from "./style";
 
 /** A herdr state symbol. `shell` shows the terminal symbol for a tab without an agent. */
@@ -345,25 +352,71 @@ export function AgentRow({ tab, group, theme, now, showProject, showHost, active
   );
 }
 
-export function GroupHeader({ group, theme, current, showHost, onNew }: {
+/** The state counts that need attention, as herdr shows them: a symbol and a number for each state. */
+function AttentionCounts({ counts, theme }: { counts: Counts; theme: Theme }) {
+  return (
+    <>
+      {ATTENTION.map((status) =>
+        counts[status] > 0 ? (
+          <Text key={status} style={{ color: statusColor(status, theme), fontSize: 11, fontWeight: "700" }}>
+            <Text style={{ fontSize: Math.round(11 * SYMBOL_SCALE[status]) }}>{SYMBOL[status]}</Text>
+            {counts[status]}
+          </Text>
+        ) : null,
+      )}
+    </>
+  );
+}
+
+export function GroupHeader({ group, theme, current, showHost, folded, onFold, onNew }: {
   group: HostGroup;
   theme: Theme;
   current: boolean;
   /** Shows the host after the project, when there are several hosts. */
   showHost?: boolean;
+  /** The project shows only this header: it gets the state counts and the number of tabs. */
+  folded?: boolean;
+  /** Folds or unfolds the project. Without it, the header is not a button. */
+  onFold?: () => void;
   /** Shows a "+" that opens a new tab in this workspace. */
   onNew?: (target: WorkspaceTarget) => void;
 }) {
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, paddingTop: 10, paddingBottom: 2 }}>
+  const label = (
+    <>
       <ProjectBadge workspace={group} size={14} />
       <Text
         numberOfLines={1}
-        style={{ flex: 1, fontSize: 11, fontWeight: "700", color: current ? theme.colors.foreground : theme.colors.foregroundMuted }}
+        style={{ flexShrink: 1, fontSize: 11, fontWeight: "700", color: current ? theme.colors.foreground : theme.colors.foregroundMuted }}
       >
         {groupLabel(group)}
         {showHost ? <Text style={{ fontWeight: "400", color: theme.colors.foregroundMuted }}>{` · ${group.hostLabel}`}</Text> : null}
       </Text>
+      {folded ? (
+        <>
+          <AttentionCounts counts={countByStatus([group])} theme={theme} />
+          <Text style={{ color: theme.colors.foregroundMuted, fontSize: 11 }}>{group.tabs.length}</Text>
+        </>
+      ) : null}
+      {onFold ? <Icon name={folded ? "ChevronRight" : "ChevronDown"} size={12} color={theme.colors.foregroundMuted} /> : null}
+    </>
+  );
+  const row = { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 } as const;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, paddingTop: 10, paddingBottom: 2 }}>
+      {onFold ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${folded ? "Show" : "Hide"} the tabs of ${groupLabel(group)}`}
+          accessibilityState={{ expanded: !folded }}
+          onPress={onFold}
+          hitSlop={6}
+          style={row}
+        >
+          {label}
+        </Pressable>
+      ) : (
+        <View style={row}>{label}</View>
+      )}
       {onNew ? (
         <Pressable
           accessibilityRole="button"
@@ -379,6 +432,52 @@ export function GroupHeader({ group, theme, current, showHost, onNew }: {
   );
 }
 
+/** The folded projects as a set, and a function that folds or unfolds one project. */
+export function useFolding(combined: Pick<Combined, "groups" | "hosts" | "workspaces">): {
+  folded: ReadonlySet<string>;
+  toggle(group: HostGroup): void;
+  setAll(fold: boolean): void;
+} {
+  const [folded, setFolded] = useFolded();
+  const set = useMemo(() => new Set(folded), [folded]);
+  const toggle = (group: HostGroup) =>
+    setFolded(toggleFolded(folded, groupKey(group), [...combined.workspaces, ...combined.groups], combined.hosts));
+  const setAll = (fold: boolean) => setFolded(foldAll(folded, combined.groups, fold));
+  return { folded: set, toggle, setAll };
+}
+
+/** "Fold all" and "Unfold all" for the display menu, in the "By project" sort with two or more projects. */
+function FoldChoice({ theme, onChoose }: { theme: Theme; onChoose?: () => void }) {
+  const [sort] = useSort();
+  const combined = useCombined();
+  const { folded, setAll } = useFolding(combined);
+  const phone = usePhoneSize();
+  if (sort !== "spaces" || combined.groups.length < 2) return null;
+  const allFolded = combined.groups.every((group) => folded.has(groupKey(group)));
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => {
+        setAll(!allFolded);
+        onChoose?.();
+      }}
+      style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => ({
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        minHeight: phone ? 44 : undefined,
+        paddingVertical: 7,
+        paddingHorizontal: 10,
+        borderRadius: 6,
+        backgroundColor: pressed || hovered ? theme.colors.surface2 : "transparent",
+      })}
+    >
+      <Icon name={allFolded ? "ChevronsUpDown" : "ChevronsDownUp"} size={15} color={theme.colors.foregroundMuted} />
+      <Text style={{ color: theme.colors.foreground, fontSize: phone ? 14 : 13 }}>{allFolded ? "Unfold all projects" : "Fold all projects"}</Text>
+    </Pressable>
+  );
+}
+
 /** A host's name with its state counts, above its tabs when the list is grouped by host. */
 export function HostHeader({ host, groups, theme }: { host: HostInfo; groups: readonly HostGroup[]; theme: Theme }) {
   const counts = countByStatus(groups.filter((group) => group.serverId === host.serverId));
@@ -388,14 +487,7 @@ export function HostHeader({ host, groups, theme }: { host: HostInfo; groups: re
       <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 12, fontWeight: "600", color: theme.colors.foregroundMuted }}>
         {host.label}
       </Text>
-      {ATTENTION.map((status) =>
-        counts[status] > 0 ? (
-          <Text key={status} style={{ color: statusColor(status, theme), fontSize: 11, fontWeight: "700" }}>
-            <Text style={{ fontSize: Math.round(11 * SYMBOL_SCALE[status]) }}>{SYMBOL[status]}</Text>
-            {counts[status]}
-          </Text>
-        ) : null,
-      )}
+      <AttentionCounts counts={counts} theme={theme} />
       {host.error ? (
         <Text accessibilityLabel={`Not updated: ${host.error}`} style={{ color: statusColor("blocked", theme), fontSize: 11 }}>
           offline
@@ -406,7 +498,7 @@ export function HostHeader({ host, groups, theme }: { host: HostInfo; groups: re
 }
 
 interface TabRowsProps {
-  combined: Pick<Combined, "groups" | "hosts">;
+  combined: Pick<Combined, "groups" | "hosts" | "workspaces">;
   theme: Theme;
   compact: boolean;
   activeKey: string | null;
@@ -422,6 +514,7 @@ export function TabRows({ combined, theme, compact, activeKey, current, onOpen, 
   const [sort] = useSort();
   const [hostMode] = useHostMode();
   const now = useNow();
+  const { folded, toggle } = useFolding(combined);
   const entries = orderedEntries(combined.groups, sort, null);
   const sections = hostSections(entries, combined.hosts, hostMode);
   // In one list of several hosts, each project says where it runs; a host section says it once.
@@ -442,31 +535,41 @@ export function TabRows({ combined, theme, compact, activeKey, current, onOpen, 
           {section.host && section.entries.length === 0 ? (
             <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12, paddingHorizontal: 8, paddingVertical: 6 }}>No open tabs</Text>
           ) : null}
-          {section.entries.map((entry, index) => (
-            <Fragment key={entryKey(entry)}>
-              {startsGroup(section.entries, index, sort) ? (
-                <GroupHeader
-                  group={entry.group}
-                  theme={theme}
-                  showHost={showHost}
-                  current={entry.group.serverId === current?.serverId && entry.group.workspaceId === current.workspaceId}
-                  onNew={onNew}
-                />
-              ) : null}
-              <AgentRow
-                tab={entry.tab}
-                group={entry.group}
-                theme={theme}
-                now={now}
-                showProject={sort === "priority"}
-                showHost={showHost}
-                active={activeKey === entryKey(entry)}
-                compact={compact}
-                onPress={() => onOpen(entry.group.serverId, entry.tab)}
-                onClose={() => closeTab(entry.group.serverId, entry.tab)}
-              />
-            </Fragment>
-          ))}
+          {section.entries.map((entry, index) => {
+            const hidden = isHidden(entry, sort, folded);
+            const groupFolded = isGroupFolded(entry.group, sort, folded);
+            // A folded project with the open tab looks like the current project, so the open tab stays findable.
+            const holdsActive = groupFolded && entry.group.tabs.some((tab) => activeKey === tabKey(entry.group.serverId, tab));
+            return (
+              <Fragment key={entryKey(entry)}>
+                {startsGroup(section.entries, index, sort) ? (
+                  <GroupHeader
+                    group={entry.group}
+                    theme={theme}
+                    showHost={showHost}
+                    current={holdsActive || (entry.group.serverId === current?.serverId && entry.group.workspaceId === current.workspaceId)}
+                    folded={hidden}
+                    onFold={() => toggle(entry.group)}
+                    onNew={onNew}
+                  />
+                ) : null}
+                {hidden ? null : (
+                  <AgentRow
+                    tab={entry.tab}
+                    group={entry.group}
+                    theme={theme}
+                    now={now}
+                    showProject={sort === "priority"}
+                    showHost={showHost}
+                    active={activeKey === entryKey(entry)}
+                    compact={compact}
+                    onPress={() => onOpen(entry.group.serverId, entry.tab)}
+                    onClose={() => closeTab(entry.group.serverId, entry.tab)}
+                  />
+                )}
+              </Fragment>
+            );
+          })}
         </Fragment>
       ))}
     </>
@@ -482,6 +585,7 @@ export function DisplayOptions({ theme, manyHosts, onChoose }: { theme: Theme; m
     <View style={{ gap: 2 }}>
       {heading("Sort")}
       <SortChoice theme={theme} onChoose={onChoose} />
+      <FoldChoice theme={theme} onChoose={onChoose} />
       {manyHosts ? (
         <>
           {heading("Hosts")}
@@ -534,7 +638,7 @@ export function FloatingMenu({ theme, top, right, maxWidth, onClose, children }:
 
 interface TabListViewProps extends TabRowsProps {
   /** With the error, so the panel and the popover say when the list is old, as the sidebar does. */
-  combined: Pick<Combined, "groups" | "hosts" | "error">;
+  combined: Pick<Combined, "groups" | "hosts" | "workspaces" | "error">;
   /** Extra buttons in the header, before the display menu. */
   header?: ReactNode;
   /** Set for a popover; a panel fills its space. */
@@ -560,14 +664,7 @@ export function TabListView({ header, maxHeight, ...rows }: TabListViewProps) {
       <View style={{ flexDirection: "row", alignItems: "center", height: phone ? 44 : 36, paddingLeft: 12, paddingRight: 4, gap: 6 }}>
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12 }}>{`${total(counts)} tabs`}</Text>
-          {ATTENTION.map((status) =>
-            counts[status] > 0 ? (
-              <Text key={status} style={{ color: statusColor(status, theme), fontSize: 11, fontWeight: "700" }}>
-                <Text style={{ fontSize: Math.round(11 * SYMBOL_SCALE[status]) }}>{SYMBOL[status]}</Text>
-                {counts[status]}
-              </Text>
-            ) : null,
-          )}
+          <AttentionCounts counts={counts} theme={theme} />
           {error && !errorOnly ? (
             <Text accessibilityLabel={`Not updated: ${error}`} style={{ color: statusColor("blocked", theme), fontSize: 11 }}>
               offline

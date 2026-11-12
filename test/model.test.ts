@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { agentCounts, combine, countByStatus, type HostGroup, hostSections, orderedEntries, rollup, startsGroup, tabKey, total } from "../client/model";
+import { agentCounts, combine, countByStatus, foldAll, groupKey, type HostGroup, hostSections, isHidden, orderedEntries, rollup, startsGroup, tabKey, toggleFolded, total } from "../client/model";
 import type { Tab, TabGroup, TabList, TabStatus } from "../shared/tabs";
 
 function tab(id: string, status: TabStatus, statusSince = 0): Tab {
@@ -109,6 +109,31 @@ test("the filter counts leave out plain shells", () => {
 
 test("the default view is one list of all hosts, by state; stored values without a field get the default", async () => {
   const { DEFAULT_VIEW, viewSchema } = await import("../shared/view-settings");
-  assert.deepEqual(DEFAULT_VIEW, { sort: "priority", collapsed: false, hosts: "combined" });
-  assert.deepEqual(viewSchema.parse({ sort: "spaces" }), { sort: "spaces", collapsed: false, hosts: "combined" });
+  assert.deepEqual(DEFAULT_VIEW, { sort: "priority", collapsed: false, hosts: "combined", folded: [] });
+  assert.deepEqual(viewSchema.parse({ sort: "spaces" }), { sort: "spaces", collapsed: false, hosts: "combined", folded: [] });
+  assert.deepEqual(viewSchema.parse({ folded: "bad" }).folded, []);
+});
+
+test("a folded project hides its tabs only in project order, and never a blocked tab", () => {
+  const folded = new Set(groups.map(groupKey));
+  const spaces = orderedEntries(groups, "spaces", null);
+  assert.deepEqual(spaces.filter((entry) => !isHidden(entry, "spaces", folded)).map((entry) => entry.tab.id), ["b1"]);
+  const priority = orderedEntries(groups, "priority", null);
+  assert.equal(priority.filter((entry) => isHidden(entry, "priority", folded)).length, 0);
+});
+
+test("fold all adds the projects of the list; unfold all keeps the folds of other hosts", () => {
+  assert.deepEqual(foldAll(["pi/x", "mac/a"], groups, true), ["pi/x", "mac/a", "mac/b"]);
+  assert.deepEqual(foldAll(["pi/x", "mac/a", "mac/b"], groups, false), ["pi/x"]);
+});
+
+test("toggling a fold adds or removes it and drops folds of gone projects on hosts that answered", () => {
+  const hosts = [
+    { serverId: "mac", label: "Mac", error: null },
+    { serverId: "pi", label: "Pi", error: "offline" },
+  ];
+  assert.deepEqual(toggleFolded([], "mac/a", groups, hosts), ["mac/a"]);
+  assert.deepEqual(toggleFolded(["mac/a"], "mac/a", groups, hosts), []);
+  // "mac/gone" is not on the Mac any more; the Pi did not answer, so "pi/x" stays.
+  assert.deepEqual(toggleFolded(["mac/gone", "pi/x"], "mac/b", groups, hosts), ["pi/x", "mac/b"]);
 });

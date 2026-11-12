@@ -152,6 +152,39 @@ export function startsGroup(entries: readonly TabEntry[], index: number, sort: S
   return sort === "spaces" && (index === 0 || entries[index - 1]!.group !== entries[index]!.group);
 }
 
+/** The key of a workspace group in the "folded" view setting. */
+export function groupKey(group: WorkspaceTarget): string {
+  return `${group.serverId}/${group.workspaceId}`;
+}
+
+/** True when the group's project is folded: in "spaces" order it shows a header with its state counts. */
+export function isGroupFolded(group: WorkspaceTarget, sort: SortMode, folded: ReadonlySet<string>): boolean {
+  return sort === "spaces" && folded.has(groupKey(group));
+}
+
+/** True when a folded project hides the entry. A blocked tab stays: it waits for you. */
+export function isHidden(entry: TabEntry, sort: SortMode, folded: ReadonlySet<string>): boolean {
+  return entry.tab.status !== "blocked" && isGroupFolded(entry.group, sort, folded);
+}
+
+/** Folds or unfolds all projects in the list. Folds of hosts without an answer stay as they are. */
+export function foldAll(folded: readonly string[], groups: readonly WorkspaceTarget[], fold: boolean): string[] {
+  const keys = groups.map(groupKey);
+  if (!fold) return folded.filter((key) => !keys.includes(key));
+  return [...folded, ...keys.filter((key) => !folded.includes(key))];
+}
+
+/**
+ * Folds or unfolds one project. It also drops the keys of projects that are gone from a host that answered,
+ * so the setting does not grow; a host without an answer keeps its keys.
+ */
+export function toggleFolded(folded: readonly string[], key: string, known: readonly WorkspaceTarget[], hosts: readonly HostInfo[]): string[] {
+  const live = new Set(known.map(groupKey));
+  const answered = new Set(hosts.filter((host) => !host.error).map((host) => host.serverId));
+  const kept = folded.filter((item) => item !== key && (live.has(item) || !answered.has(item.slice(0, item.indexOf("/")))));
+  return folded.includes(key) ? kept : [...kept, key];
+}
+
 export interface HostSection {
   /** Null when the list is not split by host. */
   host: HostInfo | null;

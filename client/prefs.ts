@@ -102,3 +102,4 @@ function useViewValue<K extends keyof View>(key: K): [View[K], (next: View[K]) =
 export const useSort = () => useViewValue("sort");
 export const useCollapsed = () => useViewValue("collapsed");
 export const useHostMode = () => useViewValue("hosts");
+export const useFolded = () => useViewValue("folded");
