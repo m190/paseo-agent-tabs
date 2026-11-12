@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { agentCounts, combine, countByStatus, foldAll, groupKey, type HostGroup, hostSections, isHidden, orderedEntries, rollup, startsGroup, tabKey, toggleFolded, total } from "../client/model";
+import { agentCounts, combine, countByStatus, foldAll, groupKey, type HostGroup, hostSections, isHidden, listLayout, orderedEntries, rollup, startsGroup, tabKey, toggleFolded, total } from "../client/model";
 import type { Tab, TabGroup, TabList, TabStatus } from "../shared/tabs";
 
 function tab(id: string, status: TabStatus, statusSince = 0): Tab {
@@ -114,17 +114,27 @@ test("the default view is one list of all hosts, by state; stored values without
   assert.deepEqual(viewSchema.parse({ folded: "bad" }).folded, []);
 });
 
-test("a folded project hides its tabs only in project order, and never a blocked tab", () => {
+test("a folded project hides its tabs only in project order, and never a blocked or done tab", () => {
   const folded = new Set(groups.map(groupKey));
   const spaces = orderedEntries(groups, "spaces", null);
   assert.deepEqual(spaces.filter((entry) => !isHidden(entry, "spaces", folded)).map((entry) => entry.tab.id), ["b1"]);
   const priority = orderedEntries(groups, "priority", null);
   assert.equal(priority.filter((entry) => isHidden(entry, "priority", folded)).length, 0);
+  const done: HostGroup[] = [{ ...groups[0]!, tabs: [tab("d1", "done"), tab("d2", "idle")] }];
+  const doneEntries = orderedEntries(done, "spaces", null);
+  assert.deepEqual(doneEntries.filter((entry) => !isHidden(entry, "spaces", folded)).map((entry) => entry.tab.id), ["d1"]);
 });
 
-test("fold all adds the projects of the list; unfold all keeps the folds of other hosts", () => {
-  assert.deepEqual(foldAll(["pi/x", "mac/a"], groups, true), ["pi/x", "mac/a", "mac/b"]);
-  assert.deepEqual(foldAll(["pi/x", "mac/a", "mac/b"], groups, false), ["pi/x"]);
+test("fold all adds the projects of the list; unfold all keeps the folds of hosts without an answer", () => {
+  const hosts = [
+    { serverId: "mac", label: "Mac", error: null },
+    { serverId: "pi", label: "Pi", error: "offline" },
+  ];
+  assert.deepEqual(foldAll(["pi/x", "mac/a"], groups, true, groups, hosts), ["pi/x", "mac/a", "mac/b"]);
+  assert.deepEqual(foldAll(["pi/x", "mac/a", "mac/b"], groups, false, groups, hosts), ["pi/x"]);
+  // A project that is gone from the Mac is dropped by both.
+  assert.deepEqual(foldAll(["mac/gone"], groups, true, groups, hosts), ["mac/a", "mac/b"]);
+  assert.deepEqual(foldAll(["mac/gone", "pi/x"], groups, false, groups, hosts), ["pi/x"]);
 });
 
 test("toggling a fold adds or removes it and drops folds of gone projects on hosts that answered", () => {
@@ -136,4 +146,38 @@ test("toggling a fold adds or removes it and drops folds of gone projects on hos
   assert.deepEqual(toggleFolded(["mac/a"], "mac/a", groups, hosts), []);
   // "mac/gone" is not on the Mac any more; the Pi did not answer, so "pi/x" stays.
   assert.deepEqual(toggleFolded(["mac/gone", "pi/x"], "mac/b", groups, hosts), ["pi/x", "mac/b"]);
+});
+
+test("the layout: a header for each project, folded projects keep only blocked rows", () => {
+  const hosts = [{ serverId: "mac", label: "Mac", error: null }];
+  // Beta's first tab is blocked: its header must still say folded (the v0.1.7 bug).
+  const folded = new Set(["mac/b"]);
+  const options = { sort: "spaces" as const, hostMode: "combined" as const, folded, activeKey: null };
+  const layout = listLayout(groups, hosts, options);
+  const items = layout.sections[0]!.items.map((item) => (item.kind === "header" ? `${item.group.workspaceId}:${item.folded ? "folded" : "open"}` : item.entry.tab.id));
+  assert.deepEqual(items, ["a:open", "a1", "a2", "b:folded", "b1"]);
+  assert.deepEqual(layout.rows.map((entry) => entry.tab.id), ["a1", "a2", "b1"]);
+  assert.equal(layout.empty, false);
+  assert.equal(layout.showHost, false);
+});
+
+test("the layout marks a folded project that holds the open tab, and ignores folds in state order", () => {
+  const hosts = [{ serverId: "mac", label: "Mac", error: null }];
+  const folded = new Set(["mac/b"]);
+  const spaces = listLayout(groups, hosts, { sort: "spaces", hostMode: "combined", folded, activeKey: tabKey("mac", groups[1]!.tabs[1]!) });
+  const header = spaces.sections[0]!.items.find((item) => item.kind === "header" && item.group.workspaceId === "b");
+  assert.equal(header?.kind === "header" && header.holdsActive, true);
+  const priority = listLayout(groups, hosts, { sort: "priority", hostMode: "combined", folded, activeKey: null });
+  assert.deepEqual(priority.sections[0]!.items.map((item) => item.kind), ["row", "row", "row", "row"]);
+});
+
+test("the layout with a filter drops host sections without matching tabs and says when nothing matches", () => {
+  const hosts = [
+    { serverId: "mac", label: "Mac", error: null },
+    { serverId: "pi", label: "Pi", error: null },
+  ];
+  const options = { sort: "spaces" as const, hostMode: "grouped" as const, folded: new Set<string>(), activeKey: null };
+  assert.deepEqual(listLayout(groups, hosts, { ...options, filter: "blocked" }).sections.map((section) => section.host?.serverId), ["mac"]);
+  assert.deepEqual(listLayout(groups, hosts, options).sections.map((section) => section.host?.serverId), ["mac", "pi"]);
+  assert.equal(listLayout(groups, hosts, { ...options, filter: "unknown" }).empty, true);
 });

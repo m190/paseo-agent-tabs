@@ -1,17 +1,18 @@
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { ScrollView } from "@getpaseo/plugin/client/ui";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
 import { withTimeout } from "../shared/async";
-import { PREVIEW_BATCH, previewRpc, type Tab, type TabStatus } from "../shared/tabs";
+import { PREVIEW_BATCH, previewRpc, type TabStatus } from "../shared/tabs";
 import { useActiveKey } from "./active-tab";
 import { closeTab } from "./close";
 import { sourceFor } from "./hub";
-import { agentCounts, countByStatus, entryKey, formatAge, hostSections, isGroupFolded, isHidden, orderedEntries, PRIORITY, startsGroup, type TabEntry, tabKey, targetKey, total, type WorkspaceTarget } from "./model";
+import { agentCounts, countByStatus, entryKey, formatAge, listLayout, PRIORITY, type TabEntry, tabKey, targetKey, total, type WorkspaceTarget } from "./model";
 import { openTab } from "./navigation";
 import { useHostMode, useSort } from "./prefs";
 import { NewTabMenu } from "./new-tab";
-import { AgentRow, DisplayOptions, FloatingMenu, GroupHeader, HostHeader, IconButton, useFolding } from "./rows";
+import { AgentRow, DisplayOptions, FloatingMenu, GroupHeader, HostHeader, IconButton } from "./rows";
+import { useFolding } from "./folding";
 import { useCombined, useNow } from "./store";
 import { statusColor, SYMBOL, SYMBOL_SCALE, type Theme } from "./style";
 import { RouteAnchor } from "./app/route";
@@ -173,7 +174,7 @@ function Preview({ preview, now, theme, compact }: { preview: PreviewState | und
 export function BoardScreen({ theme, layout, navigation }: PluginScreenProps) {
   const combined = useCombined();
   const { groups, hosts, error } = combined;
-  const { folded, toggle } = useFolding(combined);
+  const { folded, ready: foldReady, toggle } = useFolding(combined);
   const [sort, setSort] = useSort();
   const [hostMode] = useHostMode();
   const [filter, setFilter] = useState<TabStatus | null>(null);
@@ -189,22 +190,10 @@ export function BoardScreen({ theme, layout, navigation }: PluginScreenProps) {
   const activeKey = useActiveKey();
   const compact = layout.compact;
   const keyboard = !compact && Platform.OS === "web";
-  // With a filter, a host without matching tabs has no section.
-  const sections = useMemo(
-    () =>
-      hostSections(orderedEntries(groups, sort, filter), hosts, hostMode).filter(
-        (section) => section.host === null || filter === null || section.entries.length > 0,
-      ),
-    [groups, hosts, sort, filter, hostMode],
+  const { sections, rows: entries, empty, showHost } = useMemo(
+    () => listLayout(groups, hosts, { sort, hostMode, filter, folded, activeKey }),
+    [groups, hosts, sort, hostMode, filter, folded, activeKey],
   );
-  // The order on screen, for the keyboard: without the tabs of folded projects.
-  const entries = useMemo(
-    () => sections.flatMap((section) => section.entries).filter((entry) => !isHidden(entry, sort, folded)),
-    [sections, sort, folded],
-  );
-  const anyEntries = sections.some((section) => section.entries.length > 0);
-  // In one list of several hosts, each project says where it runs; a host section says it once.
-  const showHost = hosts.length > 1 && sections[0]?.host === null;
   const counts = useMemo(() => countByStatus(groups), [groups]);
   // The filter chips leave out plain shells, so "unknown" shows only for agents without a known state.
   const chipCounts = useMemo(() => agentCounts(groups), [groups]);
@@ -316,7 +305,7 @@ export function BoardScreen({ theme, layout, navigation }: PluginScreenProps) {
         ) : null}
 
         {error ? <Text style={{ color: statusColor("blocked", theme) }}>{groups.length > 0 ? `Not updated: ${error}` : error}</Text> : null}
-        {!anyEntries && !error ? (
+        {empty && !error ? (
           <Text style={{ color: theme.colors.foregroundMuted }}>{filter ? `No ${filter} agents` : "No open tabs"}</Text>
         ) : null}
 
@@ -327,60 +316,58 @@ export function BoardScreen({ theme, layout, navigation }: PluginScreenProps) {
                 <HostHeader host={section.host} groups={groups} theme={theme} />
               </View>
             ) : null}
-            {section.host && section.entries.length === 0 ? (
+            {section.host && section.items.length === 0 ? (
               <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12, paddingHorizontal: 8 }}>No open tabs</Text>
             ) : null}
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: compact ? 8 : 12 }}>
-              {section.entries.map((entry, index) => {
+              {section.items.map((item) => {
+                if (item.kind === "header") {
+                  const { group } = item;
+                  return (
+                    <View key={item.key} style={{ width: "100%", marginBottom: -6 }}>
+                      <GroupHeader
+                        group={group}
+                        theme={theme}
+                        current={item.holdsActive}
+                        showHost={showHost}
+                        folded={item.folded}
+                        onFold={foldReady ? () => toggle(group) : undefined}
+                        onNew={(target) => setNewTab({ target })}
+                      />
+                    </View>
+                  );
+                }
+                const { entry, key } = item;
                 const { tab, group } = entry;
-                const key = entryKey(entry);
-                const hidden = isHidden(entry, sort, folded);
-                const groupFolded = isGroupFolded(group, sort, folded);
                 return (
-                  <Fragment key={key}>
-                    {startsGroup(section.entries, index, sort) ? (
-                      <View style={{ width: "100%", marginBottom: -6 }}>
-                        <GroupHeader
-                          group={group}
-                          theme={theme}
-                          current={groupFolded && group.tabs.some((other) => activeKey === tabKey(group.serverId, other))}
-                          showHost={showHost}
-                          folded={groupFolded}
-                          onFold={() => toggle(group)}
-                          onNew={(target) => setNewTab({ target })}
-                        />
-                      </View>
-                    ) : null}
-                    {/* The keyboard selection outlines the whole card. */}
-                    {hidden ? null : (
-                      <View
-                        style={{
-                          width: cardWidth,
-                          borderRadius: 10,
-                          borderWidth: 1,
-                          borderColor: keyboard && entries[selectedIndex] === entry ? theme.colors.accent : theme.colors.border,
-                          padding: 6,
-                        }}
-                      >
-                        <AgentRow
-                          tab={tab}
-                          group={group}
-                          theme={theme}
-                          now={now}
-                          showProject={sort === "priority"}
-                          showHost={showHost}
-                          active={activeKey === key}
-                          compact={compact}
-                          onPress={() => open(entry)}
-                          onClose={() => closeTab(group.serverId, tab)}
-                          alwaysShowClose
-                        />
-                        <Pressable onPress={() => open(entry)} accessibilityLabel={`Open ${tab.title}`}>
-                          <Preview preview={previews[key]} now={now} theme={theme} compact={compact} />
-                        </Pressable>
-                      </View>
-                    )}
-                  </Fragment>
+                  // The keyboard selection outlines the whole card.
+                  <View
+                    key={key}
+                    style={{
+                      width: cardWidth,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: keyboard && entries[selectedIndex] === entry ? theme.colors.accent : theme.colors.border,
+                      padding: 6,
+                    }}
+                  >
+                    <AgentRow
+                      tab={tab}
+                      group={group}
+                      theme={theme}
+                      now={now}
+                      showProject={sort === "priority"}
+                      showHost={showHost}
+                      active={activeKey === key}
+                      compact={compact}
+                      onPress={() => open(entry)}
+                      onClose={() => closeTab(group.serverId, tab)}
+                      alwaysShowClose
+                    />
+                    <Pressable onPress={() => open(entry)} accessibilityLabel={`Open ${tab.title}`}>
+                      <Preview preview={previews[key]} now={now} theme={theme} compact={compact} />
+                    </Pressable>
+                  </View>
                 );
               })}
             </View>

@@ -7,6 +7,8 @@ import { ownSource } from "./store";
 
 // A change shows at once in every component; the daemon saves it in the background. The override goes away
 // when the save succeeds, so the stored value (also a change from another device) shows again.
+// A save writes whole values. So a list value (the folds) must change only after the stored values loaded
+// (`useViewReady`), or the change would replace the stored list.
 let pending: Partial<View> = {};
 const listeners = new Set<() => void>();
 
@@ -103,3 +105,5 @@ export const useSort = () => useViewValue("sort");
 export const useCollapsed = () => useViewValue("collapsed");
 export const useHostMode = () => useViewValue("hosts");
 export const useFolded = () => useViewValue("folded");
+/** True when the stored values have loaded. A change of a list (the folds) must wait for it, or it would replace the stored list. */
+export const useViewReady = () => useViewSettings().status === "ready";

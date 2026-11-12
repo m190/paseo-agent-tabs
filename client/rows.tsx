@@ -1,5 +1,5 @@
 import { Icon, ScrollView } from "@getpaseo/plugin/client/ui";
-import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useState } from "react";
 import { Pressable, Text, useWindowDimensions, View } from "react-native";
 import type { Tab, TabStatus, WorkspaceInfo } from "../shared/tabs";
 import {
@@ -8,26 +8,19 @@ import {
   type Counts,
   countByStatus,
   total,
-  entryKey,
   formatAge,
   groupKey,
   groupLabel,
   type HostGroup,
   type HostInfo,
   type HostMode,
-  hostSections,
-  foldAll,
-  isGroupFolded,
-  isHidden,
   isShell,
-  orderedEntries,
+  listLayout,
   type SortMode,
-  startsGroup,
-  tabKey,
-  toggleFolded,
   type WorkspaceTarget,
 } from "./model";
-import { useFolded, useHostMode, useSort } from "./prefs";
+import { useFolding } from "./folding";
+import { useHostMode, useSort } from "./prefs";
 import { closeTab, errorMessage } from "./close";
 import { useCombined, useNow } from "./store";
 import { projectColor, SHELL_SYMBOL, statusColor, SYMBOL, SYMBOL_SCALE, type Theme } from "./style";
@@ -408,7 +401,7 @@ export function GroupHeader({ group, theme, current, showHost, folded, onFold, o
           accessibilityRole="button"
           accessibilityLabel={`${folded ? "Show" : "Hide"} the tabs of ${groupLabel(group)}`}
           accessibilityState={{ expanded: !folded }}
-          onPress={onFold}
+              onPress={onFold}
           hitSlop={6}
           style={row}
         >
@@ -432,27 +425,13 @@ export function GroupHeader({ group, theme, current, showHost, folded, onFold, o
   );
 }
 
-/** The folded projects as a set, and a function that folds or unfolds one project. */
-export function useFolding(combined: Pick<Combined, "groups" | "hosts" | "workspaces">): {
-  folded: ReadonlySet<string>;
-  toggle(group: HostGroup): void;
-  setAll(fold: boolean): void;
-} {
-  const [folded, setFolded] = useFolded();
-  const set = useMemo(() => new Set(folded), [folded]);
-  const toggle = (group: HostGroup) =>
-    setFolded(toggleFolded(folded, groupKey(group), [...combined.workspaces, ...combined.groups], combined.hosts));
-  const setAll = (fold: boolean) => setFolded(foldAll(folded, combined.groups, fold));
-  return { folded: set, toggle, setAll };
-}
-
 /** "Fold all" and "Unfold all" for the display menu, in the "By project" sort with two or more projects. */
 function FoldChoice({ theme, onChoose }: { theme: Theme; onChoose?: () => void }) {
   const [sort] = useSort();
   const combined = useCombined();
-  const { folded, setAll } = useFolding(combined);
+  const { folded, ready, setAll } = useFolding(combined);
   const phone = usePhoneSize();
-  if (sort !== "spaces" || combined.groups.length < 2) return null;
+  if (!ready || sort !== "spaces" || combined.groups.length < 2) return null;
   const allFolded = combined.groups.every((group) => folded.has(groupKey(group)));
   return (
     <Pressable
@@ -514,12 +493,9 @@ export function TabRows({ combined, theme, compact, activeKey, current, onOpen, 
   const [sort] = useSort();
   const [hostMode] = useHostMode();
   const now = useNow();
-  const { folded, toggle } = useFolding(combined);
-  const entries = orderedEntries(combined.groups, sort, null);
-  const sections = hostSections(entries, combined.hosts, hostMode);
-  // In one list of several hosts, each project says where it runs; a host section says it once.
-  const showHost = combined.hosts.length > 1 && sections[0]?.host === null;
-  if (entries.length === 0 && sections[0]?.host === null) {
+  const { folded, ready, toggle } = useFolding(combined);
+  const { sections, empty, showHost } = listLayout(combined.groups, combined.hosts, { sort, hostMode, folded, activeKey });
+  if (empty && sections[0]?.host === null) {
     return (
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 12 }}>
         <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12 }}>No open tabs</Text>
@@ -532,42 +508,41 @@ export function TabRows({ combined, theme, compact, activeKey, current, onOpen, 
       {sections.map((section) => (
         <Fragment key={section.host?.serverId ?? "all"}>
           {section.host ? <HostHeader host={section.host} groups={combined.groups} theme={theme} /> : null}
-          {section.host && section.entries.length === 0 ? (
+          {section.host && section.items.length === 0 ? (
             <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12, paddingHorizontal: 8, paddingVertical: 6 }}>No open tabs</Text>
           ) : null}
-          {section.entries.map((entry, index) => {
-            const hidden = isHidden(entry, sort, folded);
-            const groupFolded = isGroupFolded(entry.group, sort, folded);
-            // A folded project with the open tab looks like the current project, so the open tab stays findable.
-            const holdsActive = groupFolded && entry.group.tabs.some((tab) => activeKey === tabKey(entry.group.serverId, tab));
+          {section.items.map((item) => {
+            if (item.kind === "header") {
+              const { group } = item;
+              const isCurrent = group.serverId === current?.serverId && group.workspaceId === current.workspaceId;
+              return (
+                <GroupHeader
+                  key={item.key}
+                  group={group}
+                  theme={theme}
+                  showHost={showHost}
+                  current={item.holdsActive || isCurrent}
+                  folded={item.folded}
+                  onFold={ready ? () => toggle(group) : undefined}
+                  onNew={onNew}
+                />
+              );
+            }
+            const { tab, group } = item.entry;
             return (
-              <Fragment key={entryKey(entry)}>
-                {startsGroup(section.entries, index, sort) ? (
-                  <GroupHeader
-                    group={entry.group}
-                    theme={theme}
-                    showHost={showHost}
-                    current={holdsActive || (entry.group.serverId === current?.serverId && entry.group.workspaceId === current.workspaceId)}
-                    folded={hidden}
-                    onFold={() => toggle(entry.group)}
-                    onNew={onNew}
-                  />
-                ) : null}
-                {hidden ? null : (
-                  <AgentRow
-                    tab={entry.tab}
-                    group={entry.group}
-                    theme={theme}
-                    now={now}
-                    showProject={sort === "priority"}
-                    showHost={showHost}
-                    active={activeKey === entryKey(entry)}
-                    compact={compact}
-                    onPress={() => onOpen(entry.group.serverId, entry.tab)}
-                    onClose={() => closeTab(entry.group.serverId, entry.tab)}
-                  />
-                )}
-              </Fragment>
+              <AgentRow
+                key={item.key}
+                tab={tab}
+                group={group}
+                theme={theme}
+                now={now}
+                showProject={sort === "priority"}
+                showHost={showHost}
+                active={activeKey === item.key}
+                compact={compact}
+                onPress={() => onOpen(group.serverId, tab)}
+                onClose={() => closeTab(group.serverId, tab)}
+              />
             );
           })}
         </Fragment>

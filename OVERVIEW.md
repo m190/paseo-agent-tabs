@@ -18,7 +18,7 @@ See which Claude Code or Codex tab needs you. One row per tab, with a state symb
 ## What you can do
 
 - Click a row to open the tab.
-- Sort by state (what needs you first) or by project. Click a project name to fold it. A blocked tab stays visible in a folded project.
+- Sort by state (what needs you first) or by project. Click a project name to fold it. Blocked and done tabs stay visible in a folded project.
 - Use "+" to start a new tab from a Paseo terminal profile.
 - Close a tab with × (or a long press on a phone).
 - Use the keyboard on the board: j/k, enter, 1-9, a/b/w/d/i, s.

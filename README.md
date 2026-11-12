@@ -18,7 +18,7 @@ Paseo's own lists show Paseo agents. Many people run Claude Code and Codex in pl
 
 Exact states come from Paseo's agent hooks. An agent without hooks shows working while its title or screen shows work, and idle otherwise.
 
-It shows in the left sidebar, on an "Agents" board screen, in a right-side panel, and behind a header button in every workspace. You can open a tab, start a new one from a Paseo terminal profile, or close one. In the "By project" sort, a click on a project name folds it: the project then shows its state counts and only its blocked tabs. The display menu folds or unfolds all projects. See [OVERVIEW.md](OVERVIEW.md) for a short tour.
+It shows in the left sidebar, on an "Agents" board screen, in a right-side panel, and behind a header button in every workspace. You can open a tab, start a new one from a Paseo terminal profile, or close one. In the "By project" sort, a click on a project name folds it: the project then shows its state counts and only its blocked and done tabs. The display menu folds or unfolds all projects. See [OVERVIEW.md](OVERVIEW.md) for a short tour.
 
 ![The agents board](assets/board.png)
 
@@ -57,7 +57,7 @@ Terminal states come from Paseo's terminal agent hooks (`daemon.enableTerminalAg
 ## Known limits
 
 - Paseo's own project list stays visible. A plugin cannot filter it.
-- The app refreshes its terminal list of a project only while it shows that project. So a link to a new tab can show the old tab first. The plugin sends the link again after 1 and 2.5 seconds. The repeats stop when you open another tab, close the tab, click, press a key, or go back.
+- The app refreshes its terminal list of a project only while it shows that project. So a link to a new tab can show the old tab first. The plugin sends the link again after 1 and 2.5 seconds. The repeats stop when you open another tab or close the tab. On web and desktop, they also stop when you click, press a key, or go back.
 - On a phone, a tab that you select in the app's tab bar less than 2.5 seconds after you open a row goes back to that row.
 - On a phone, the app does not save its open sheets. While a sheet shows a tab, the highlight stays on the tab under the sheet.
 

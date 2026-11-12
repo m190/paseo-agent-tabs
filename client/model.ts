@@ -162,16 +162,25 @@ export function isGroupFolded(group: WorkspaceTarget, sort: SortMode, folded: Re
   return sort === "spaces" && folded.has(groupKey(group));
 }
 
-/** True when a folded project hides the entry. A blocked tab stays: it waits for you. */
+/** The states that a folded project still shows: these tabs wait for you. A done tab hides again once you saw it. */
+export const SHOWN_WHEN_FOLDED: readonly TabStatus[] = ["blocked", "done"];
+
+/** True when a folded project hides the entry. */
 export function isHidden(entry: TabEntry, sort: SortMode, folded: ReadonlySet<string>): boolean {
-  return entry.tab.status !== "blocked" && isGroupFolded(entry.group, sort, folded);
+  return !SHOWN_WHEN_FOLDED.includes(entry.tab.status) && isGroupFolded(entry.group, sort, folded);
 }
 
 /** Folds or unfolds all projects in the list. Folds of hosts without an answer stay as they are. */
-export function foldAll(folded: readonly string[], groups: readonly WorkspaceTarget[], fold: boolean): string[] {
+export function foldAll(
+  folded: readonly string[],
+  groups: readonly WorkspaceTarget[],
+  fold: boolean,
+  known: readonly WorkspaceTarget[],
+  hosts: readonly HostInfo[],
+): string[] {
   const keys = groups.map(groupKey);
-  if (!fold) return folded.filter((key) => !keys.includes(key));
-  return [...folded, ...keys.filter((key) => !folded.includes(key))];
+  const kept = withoutGone(folded, known, hosts).filter((key) => !keys.includes(key));
+  return fold ? [...kept, ...keys] : kept;
 }
 
 /**
@@ -179,10 +188,15 @@ export function foldAll(folded: readonly string[], groups: readonly WorkspaceTar
  * so the setting does not grow; a host without an answer keeps its keys.
  */
 export function toggleFolded(folded: readonly string[], key: string, known: readonly WorkspaceTarget[], hosts: readonly HostInfo[]): string[] {
+  const kept = withoutGone(folded, known, hosts).filter((item) => item !== key);
+  return folded.includes(key) ? kept : [...kept, key];
+}
+
+/** The folds without the projects that are gone from a host that answered. */
+function withoutGone(folded: readonly string[], known: readonly WorkspaceTarget[], hosts: readonly HostInfo[]): string[] {
   const live = new Set(known.map(groupKey));
   const answered = new Set(hosts.filter((host) => !host.error).map((host) => host.serverId));
-  const kept = folded.filter((item) => item !== key && (live.has(item) || !answered.has(item.slice(0, item.indexOf("/")))));
-  return folded.includes(key) ? kept : [...kept, key];
+  return folded.filter((item) => live.has(item) || !answered.has(item.slice(0, item.indexOf("/"))));
 }
 
 export interface HostSection {
@@ -195,6 +209,69 @@ export interface HostSection {
 export function hostSections(entries: readonly TabEntry[], hosts: readonly HostInfo[], mode: HostMode): HostSection[] {
   if (mode !== "grouped" || hosts.length < 2) return [{ host: null, entries: [...entries] }];
   return hosts.map((host) => ({ host, entries: entries.filter((entry) => entry.group.serverId === host.serverId) }));
+}
+
+/** One line of a tab list: a project header, or a tab row. */
+export type ListItem =
+  | {
+      kind: "header";
+      key: string;
+      group: HostGroup;
+      folded: boolean;
+      /** The project is folded and holds the tab that the app shows. */
+      holdsActive: boolean;
+    }
+  | { kind: "row"; key: string; entry: TabEntry };
+
+export interface ListSection {
+  /** Null when the list is not split by host. */
+  host: HostInfo | null;
+  items: ListItem[];
+}
+
+export interface ListLayout {
+  sections: ListSection[];
+  /** The rows on screen, in order: for the keyboard and the previews. */
+  rows: TabEntry[];
+  /** True when no tab matches, folded or not. */
+  empty: boolean;
+  /** Each project names its host: in one list of several hosts. A host section names it once. */
+  showHost: boolean;
+}
+
+export interface LayoutOptions {
+  sort: SortMode;
+  hostMode: HostMode;
+  /** Only tabs in this state. A host without such tabs then has no section. */
+  filter?: TabStatus | null;
+  folded: ReadonlySet<string>;
+  /** The tab that the app shows. */
+  activeKey: string | null;
+}
+
+/** What a tab list shows, in order: host sections, project headers in "spaces" order, and the rows that are not folded away. */
+export function listLayout(groups: readonly HostGroup[], hosts: readonly HostInfo[], options: LayoutOptions): ListLayout {
+  const filter = options.filter ?? null;
+  const entries = orderedEntries(groups, options.sort, filter);
+  const sections = hostSections(entries, hosts, options.hostMode)
+    .filter((section) => section.host === null || filter === null || section.entries.length > 0)
+    .map((section) => ({ host: section.host, items: sectionItems(section.entries, options) }));
+  const rows = sections.flatMap((section) => section.items.flatMap((item) => (item.kind === "row" ? [item.entry] : [])));
+  return { sections, rows, empty: entries.length === 0, showHost: hosts.length > 1 && sections[0]?.host === null };
+}
+
+function sectionItems(entries: readonly TabEntry[], { sort, folded, activeKey }: LayoutOptions): ListItem[] {
+  const items: ListItem[] = [];
+  entries.forEach((entry, index) => {
+    const { group } = entry;
+    if (startsGroup(entries, index, sort)) {
+      const groupFolded = isGroupFolded(group, sort, folded);
+      const holdsActive = groupFolded && group.tabs.some((tab) => tabKey(group.serverId, tab) === activeKey);
+      items.push({ kind: "header", key: `header:${groupKey(group)}`, group, folded: groupFolded, holdsActive });
+    }
+    if (!isHidden(entry, sort, folded)) items.push({ kind: "row", key: entryKey(entry), entry });
+  });
+  return items;
 }
 
 export function formatAge(since: number, now: number): string {
