@@ -350,7 +350,7 @@ export function AgentRow({ tab, group, theme, now, showProject, showHost, active
             {showProject && showHost ? (
               <>
                 <MetaSeparator theme={theme} compact={compact} />
-                <MetaPart theme={theme} compact={compact} icon="Server" text={group.hostLabel} />
+                <MetaPart theme={theme} compact={compact} icon="Server" text={group.hostLabel} fill />
               </>
             ) : null}
             {!shell && tab.detail ? (
@@ -381,16 +381,18 @@ function MetaSeparator({ theme, compact }: { theme: Theme; compact?: boolean }) 
 }
 
 /** One part of row line 2: a small icon and its text, as Paseo shows a workspace's folder. */
-function MetaPart({ theme, compact, icon, text }: {
+function MetaPart({ theme, compact, icon, text, fill }: {
   theme: Theme;
   compact?: boolean;
   icon: PluginIcon;
   text: string;
+  /** The host gets the space left after the project/worktree and background work. */
+  fill?: boolean;
 }) {
   const size = compact ? 13 : 12;
   // A part is never narrower than its icon, so an icon does not paint over the next part.
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, flexShrink: 1, minWidth: size - 1 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, flexGrow: fill ? 1 : 0, flexBasis: fill ? 0 : "auto", flexShrink: 1, minWidth: size - 1 }}>
       {/* The icon keeps its size; only the text gets shorter. Web needs minWidth 0 to cut a word. */}
       <View style={{ flexShrink: 0 }}>
         <Icon icon={icon} size={size - 1} color={theme.colors.foregroundMuted} />
