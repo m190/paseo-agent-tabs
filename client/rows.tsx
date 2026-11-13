@@ -342,13 +342,24 @@ export function AgentRow({ tab, group, theme, now, showProject, showHost, active
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginLeft: compact ? 23 : 21 }}>
             {showProject ? <MetaPart theme={theme} compact={compact} icon="Folder" text={group.projectName} /> : null}
             {showProject && group.workspaceName ? (
-              <MetaPart theme={theme} compact={compact} icon="GitBranch" text={group.workspaceName} />
+              <>
+                <MetaSeparator theme={theme} compact={compact} />
+                <MetaPart theme={theme} compact={compact} icon="GitBranch" text={group.workspaceName} />
+              </>
             ) : null}
-            {showProject && showHost ? <MetaPart theme={theme} compact={compact} icon="Server" text={group.hostLabel} maxWidth={HOST_MAX_WIDTH} /> : null}
+            {showProject && showHost ? (
+              <>
+                <MetaSeparator theme={theme} compact={compact} />
+                <MetaPart theme={theme} compact={compact} icon="Server" text={group.hostLabel} />
+              </>
+            ) : null}
             {!shell && tab.detail ? (
-              <Text numberOfLines={1} style={{ flexShrink: 0, fontSize: compact ? 13 : 12, color: statusColor(tab.status, theme) }}>
-                {tab.detail}
-              </Text>
+              <>
+                {showProject ? <MetaSeparator theme={theme} compact={compact} /> : null}
+                <Text numberOfLines={1} style={{ flexShrink: 0, fontSize: compact ? 13 : 12, color: statusColor(tab.status, theme) }}>
+                  {tab.detail}
+                </Text>
+              </>
             ) : null}
           </View>
         ) : null}
@@ -364,22 +375,22 @@ function agentIcon(tab: Tab): PluginIcon {
   return tab.agent === "shell" ? "SquareTerminal" : "Bot";
 }
 
-// The host never takes more than this ("Alexandr's M…"); the project and the worktree share the rest.
-const HOST_MAX_WIDTH = 96;
+/** The same middle dot Paseo uses between workspace metadata. */
+function MetaSeparator({ theme, compact }: { theme: Theme; compact?: boolean }) {
+  return <Text style={{ flexShrink: 0, fontSize: compact ? 13 : 12, color: theme.colors.foregroundMuted }}>·</Text>;
+}
 
 /** One part of row line 2: a small icon and its text, as Paseo shows a workspace's folder. */
-function MetaPart({ theme, compact, icon, text, maxWidth }: {
+function MetaPart({ theme, compact, icon, text }: {
   theme: Theme;
   compact?: boolean;
   icon: PluginIcon;
   text: string;
-  /** A part with a fixed limit keeps its width up to it; the other parts shrink to fit the row. */
-  maxWidth?: number;
 }) {
   const size = compact ? 13 : 12;
   // A part is never narrower than its icon, so an icon does not paint over the next part.
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, flexShrink: maxWidth ? 0 : 1, maxWidth, minWidth: size - 1 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, flexShrink: 1, minWidth: size - 1 }}>
       {/* The icon keeps its size; only the text gets shorter. Web needs minWidth 0 to cut a word. */}
       <View style={{ flexShrink: 0 }}>
         <Icon icon={icon} size={size - 1} color={theme.colors.foregroundMuted} />
