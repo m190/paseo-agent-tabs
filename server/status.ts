@@ -57,10 +57,19 @@ export function profileAgent(profile: ProfileIdentity): string {
   return KNOWN_AGENTS.find((agent) => hints.some((hint) => hint.startsWith(agent))) ?? agentName(profile.name);
 }
 
-/** The agent of a terminal: Paseo names a terminal after the profile that started it. */
-export function terminalAgent(terminalName: string, profiles: readonly ProfileIdentity[]): string {
+// Claude Code's own title glyphs: "✳" when it waits, the half-circle spinner while it works.
+const CLAUDE_TITLE = /^[✳◐-◓]\s/u;
+
+/**
+ * The agent of a terminal: Paseo names a terminal after the profile that started it. A terminal with its own
+ * name ("review-pr shop-12", made with `paseo terminal create --name`) can still run Claude Code; its title
+ * shows that.
+ */
+export function terminalAgent(terminalName: string, profiles: readonly ProfileIdentity[], title?: string | null): string {
   const profile = profiles.find((candidate) => candidate.name === terminalName);
-  return profile ? profileAgent(profile) : agentName(terminalName);
+  const agent = profile ? profileAgent(profile) : agentName(terminalName);
+  if ((KNOWN_AGENTS as readonly string[]).includes(agent)) return agent;
+  return CLAUDE_TITLE.test(title ?? "") ? "claude" : agent;
 }
 
 /** The title without the agent's status decoration. */

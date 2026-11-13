@@ -54,6 +54,8 @@ All of this stays between your Paseo daemons and your Paseo app. The plugin send
 
 Terminal states come from Paseo's terminal agent hooks (`daemon.enableTerminalAgentHooks`). Claude Code shows blocked while its screen shows a question or a permission dialog, because its hooks still report working then. Agents without hooks, such as Codex, show working while their title has a spinner or their screen shows "Working (…)", and idle otherwise. They cannot show done.
 
+The agent of a terminal comes from its Paseo terminal profile. A terminal with its own name, for example from `paseo terminal create --name`, counts as Claude Code while its title starts with Claude Code's `✳` or its spinner.
+
 ## Known limits
 
 - Paseo's own project list stays visible. A plugin cannot filter it.

@@ -204,6 +204,23 @@ test("a renamed Codex profile still gets Codex's screen rules", async () => {
   assert.equal(plain?.status, "idle");
 });
 
+test("a terminal with its own name that runs Claude Code gets Claude's rules", async () => {
+  // `paseo terminal create --name "review-pr shop-12"`, then `claude "/review-pr 12"`.
+  const needsInput = { state: "idle" as const, attentionReason: "needs_input" as const, changedAt: 1 };
+  const daemon = new FakeDaemon();
+  daemon.terminals = [{ id: "t1", name: "review-pr shop-12", workspaceId: "w1", title: "✳ PR 12 review", activity: needsInput }];
+  daemon.screens.set("t1", ["Verdict: approve.", "", "❯", "  ~/repos/shop", "  ⏵⏵ bypass permissions on"]);
+  const tabs = source([daemon]);
+  const tab = (await tabs.list()).groups[0]?.tabs[0];
+  assert.equal(tab?.agent, "claude");
+  // Claude's idle reminder after the turn is done, not blocked.
+  assert.equal(tab?.status, "done");
+  // A dialog on the screen still makes it blocked.
+  daemon.screens.set("t1", ["Post the comments?", "❯ 1. Yes", "  2. No", "Enter to select · ↑/↓ to navigate · Esc to cancel"]);
+  tabs.refreshSoon();
+  assert.equal((await tabs.list()).groups[0]?.tabs[0]?.status, "blocked");
+});
+
 test("a failed capture keeps the last screen for a short time", async () => {
   const daemon = new FakeDaemon();
   daemon.terminals = [{ id: "t1", name: "Codex", workspaceId: "w1", title: "fix bug", activity: null }];

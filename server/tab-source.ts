@@ -214,7 +214,7 @@ export class TabSource {
   }
 
   private async terminalTab(daemon: HostDaemon, terminal: RawTerminal, profiles: readonly ProfileIdentity[]): Promise<Tab> {
-    const agent = terminalAgent(terminal.name, profiles);
+    const agent = terminalAgent(terminal.name, profiles, terminal.title);
     const rows = FOOTER_LINES[agent];
     const footer = rows ? await this.footer(daemon, terminal.id, rows) : null;
     const { status, detail } = terminalStatus({ name: terminal.name, agent, title: terminal.title, activity: terminal.activity, footer });

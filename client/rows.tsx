@@ -1,4 +1,5 @@
 import { Icon, ScrollView } from "@getpaseo/plugin/client/ui";
+import type { PluginIcon } from "@getpaseo/plugin/client";
 import { Fragment, type ReactNode, useEffect, useState } from "react";
 import { Pressable, Text, useWindowDimensions, View } from "react-native";
 import type { Tab, TabStatus, WorkspaceInfo } from "../shared/tabs";
@@ -21,6 +22,7 @@ import {
   type WorkspaceTarget,
 } from "./model";
 import { useFolding } from "./folding";
+import { PROFILE_ICONS } from "./profile-icons";
 import { useHostMode, usePreviewSize, useSort } from "./prefs";
 import { closeTab, errorMessage } from "./close";
 import { useCombined, useNow } from "./store";
@@ -269,7 +271,9 @@ export function AgentRow({ tab, group, theme, now, showProject, showHost, active
     }
   };
   const working = tab.status === "working";
-  const question = error ?? (working ? `${tab.agent} is working. Close anyway?` : shell ? "Close this terminal?" : "Close this tab?");
+  // The plain case has no question: the buttons say it, and the row stays one line on a phone.
+  const line2 = showProject || (!shell && Boolean(tab.detail));
+  const question = error ?? (closing === "busy" ? "Closing…" : working ? `${tab.agent} is working.` : null);
   return (
     <Pressable
       accessibilityRole="button"
@@ -292,6 +296,10 @@ export function AgentRow({ tab, group, theme, now, showProject, showHost, active
       <>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Glyph status={tab.status} theme={theme} size={compact ? 15 : 13} shell={shell} />
+          {/* The agent's logo before the title, as in Paseo's own tab bar; a terminal icon for a plain shell. */}
+          <View style={{ flexShrink: 0 }}>
+            <Icon icon={agentIcon(tab)} size={compact ? 14 : 12} color={theme.colors.foregroundMuted} />
+          </View>
           <Text
             numberOfLines={1}
             style={{ flex: 1, color: theme.colors.foreground, fontWeight: active ? "700" : "600", fontSize: compact ? 15 : 13 }}
@@ -313,36 +321,73 @@ export function AgentRow({ tab, group, theme, now, showProject, showHost, active
         </View>
         {closing ? (
           // The close question takes the place of line 2.
+          // The buttons are one unit: if the text does not fit, both buttons go to the next line together.
           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginLeft: compact ? 23 : 21, marginTop: 4 }}>
-            <Text style={{ flexShrink: 1, fontSize: compact ? 13 : 12, color: error ? statusColor("blocked", theme) : theme.colors.foreground }}>
-              {closing === "busy" ? "Closing…" : question}
-            </Text>
+            {question ? (
+              <Text style={{ flexShrink: 1, fontSize: compact ? 13 : 12, color: error ? statusColor("blocked", theme) : theme.colors.foreground }}>
+                {question}
+              </Text>
+            ) : null}
             {closing === "ask" ? (
-              <>
+              // On its own line and still too wide (large text), the pair may shrink and wrap.
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, flexShrink: 1, minWidth: 0 }}>
                 <RowButton theme={theme} label={working ? "Stop and close" : "Close"} danger onPress={() => void close()} />
                 <RowButton theme={theme} label="Cancel" onPress={cancel} />
-              </>
+              </View>
             ) : null}
           </View>
-        ) : (
-          /* Line 2: what, in which project, on which host. The symbol and its color give the state. The project
-             and the host give way first, so the background work ("1 shell") stays visible. */
-          <View style={{ flexDirection: "row", marginLeft: compact ? 23 : 21 }}>
-            <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: compact ? 13 : 12, color: theme.colors.foregroundMuted }}>
-              {shell ? "terminal" : tab.agent}
-              {showProject ? ` · ${groupLabel(group)}` : ""}
-              {showProject && showHost ? ` · ${group.hostLabel}` : ""}
-            </Text>
+        ) : line2 ? (
+          /* Line 2: in which project, on which host. The project and the host give way first, so the background
+             work ("1 shell") stays visible. Without any of them, the row has one line. */
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginLeft: compact ? 23 : 21 }}>
+            {showProject ? <MetaPart theme={theme} compact={compact} icon="Folder" text={group.projectName} /> : null}
+            {showProject && group.workspaceName ? (
+              <MetaPart theme={theme} compact={compact} icon="GitBranch" text={group.workspaceName} />
+            ) : null}
+            {showProject && showHost ? <MetaPart theme={theme} compact={compact} icon="Server" text={group.hostLabel} maxWidth={HOST_MAX_WIDTH} /> : null}
             {!shell && tab.detail ? (
               <Text numberOfLines={1} style={{ flexShrink: 0, fontSize: compact ? 13 : 12, color: statusColor(tab.status, theme) }}>
-                {/* Non-breaking spaces: web drops a normal space at the start of this text. */}
-                {`\u00a0·\u00a0${tab.detail}`}
+                {tab.detail}
               </Text>
             ) : null}
           </View>
-        )}
+        ) : null}
       </>
     </Pressable>
+  );
+}
+
+/** The agent's logo, as Paseo shows it in its menus; a terminal or bot symbol when there is none. */
+function agentIcon(tab: Tab): PluginIcon {
+  const svg = PROFILE_ICONS[tab.agent];
+  if (svg) return { svg };
+  return tab.agent === "shell" ? "SquareTerminal" : "Bot";
+}
+
+// The host never takes more than this ("Alexandr's M…"); the project and the worktree share the rest.
+const HOST_MAX_WIDTH = 96;
+
+/** One part of row line 2: a small icon and its text, as Paseo shows a workspace's folder. */
+function MetaPart({ theme, compact, icon, text, maxWidth }: {
+  theme: Theme;
+  compact?: boolean;
+  icon: PluginIcon;
+  text: string;
+  /** A part with a fixed limit keeps its width up to it; the other parts shrink to fit the row. */
+  maxWidth?: number;
+}) {
+  const size = compact ? 13 : 12;
+  // A part is never narrower than its icon, so an icon does not paint over the next part.
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, flexShrink: maxWidth ? 0 : 1, maxWidth, minWidth: size - 1 }}>
+      {/* The icon keeps its size; only the text gets shorter. Web needs minWidth 0 to cut a word. */}
+      <View style={{ flexShrink: 0 }}>
+        <Icon icon={icon} size={size - 1} color={theme.colors.foregroundMuted} />
+      </View>
+      <Text numberOfLines={1} style={{ flexShrink: 1, minWidth: 0, fontSize: size, color: theme.colors.foregroundMuted }}>
+        {text}
+      </Text>
+    </View>
   );
 }
 

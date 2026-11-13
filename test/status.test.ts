@@ -120,3 +120,15 @@ test("a terminal takes the agent of the profile with its name, else the name", (
   assert.equal(terminalAgent("Claude Code", profiles), "claude");
   assert.equal(terminalAgent("Terminal 2", profiles), "shell");
 });
+
+test("a terminal with its own name runs Claude Code when its title says so", () => {
+  // `paseo terminal create --name "review-pr shop-12"`, then `claude "/review-pr 12"`.
+  assert.equal(terminalAgent("review-pr shop-12", [], "✳ PR 12 review"), "claude");
+  assert.equal(terminalAgent("review-pr shop-12", [], "◑ PR 12 review"), "claude");
+  assert.equal(terminalAgent("Terminal 2", [], "✳ Claude Code"), "claude");
+  assert.equal(terminalAgent("review-pr shop-12", [], "npm test"), "review-pr");
+  assert.equal(terminalAgent("Codex", [], "✳ odd title"), "codex");
+  // Claude's idle reminder (needs_input about 60 s after the turn) is then "done", not "blocked".
+  const agent = terminalAgent("review-pr shop-12", [], "✳ PR 12 review");
+  assert.equal(terminalStatus({ name: "review-pr shop-12", agent, title: "✳ PR 12 review", activity: needsInput }).status, "done");
+});
