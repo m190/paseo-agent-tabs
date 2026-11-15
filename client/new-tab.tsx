@@ -7,12 +7,13 @@ import { sourceFor } from "./hub";
 import { groupLabel, type HostWorkspace, type WorkspaceTarget } from "./model";
 import { type Navigation, openTab } from "./navigation";
 import { PROFILE_ICONS } from "./profile-icons";
-import { ProjectBadge } from "./rows";
+import { ProjectBadge, usePhoneSize } from "./rows";
 import { useCombined, waitForTerminal } from "./store";
 import { statusColor, type Theme } from "./style";
 
 const CREATE_TIMEOUT_MS = 15_000;
 const NO_HOST = "This host is not connected";
+const LIST_PADDING = { paddingHorizontal: 4, paddingBottom: 8 };
 
 /** The profile list changes rarely, but a change in Paseo's settings must show the next time the menu opens. */
 const PROFILES_TTL_MS = 30_000;
@@ -119,6 +120,10 @@ export function NewTabMenu({ theme, target: preset, navigation, close, onBack }:
     : undefined;
   const promptProfiles = profiles?.filter((profile) => profile.takesPrompt) ?? [];
   const manyHosts = hosts.length > 1;
+  // On a phone the surface around the menu scrolls all of it: the app's sheet, the board, the panel. A list
+  // with its own scroll does not work there: on Android it cannot scroll, and the app sizes the sheet from
+  // that list, not from the menu.
+  const phone = usePhoneSize();
 
   const start = async (profile: Profile) => {
     if (!target || busy) return;
@@ -178,35 +183,44 @@ export function NewTabMenu({ theme, target: preset, navigation, close, onBack }:
   );
 
   if (!workspace) {
+    const projects = (
+      <>
+        {workspaces.length === 0 ? <Text style={{ color: theme.colors.foregroundMuted, padding: 12 }}>No projects</Text> : null}
+        {workspaces.map((info: HostWorkspace, index) => {
+          const count = tabCounts.get(key(info.serverId, info.workspaceId)) ?? 0;
+          const firstOfHost = index === 0 || workspaces[index - 1]!.serverId !== info.serverId;
+          return (
+            <Fragment key={key(info.serverId, info.workspaceId)}>
+              {manyHosts && firstOfHost ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 2 }}>
+                  <Icon name="Server" size={12} color={theme.colors.foregroundMuted} />
+                  <Text numberOfLines={1} style={{ fontSize: 11, color: theme.colors.foregroundMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    {info.hostLabel}
+                  </Text>
+                </View>
+              ) : null}
+              <Row
+                theme={theme}
+                leading={<ProjectBadge workspace={info} size={18} />}
+                label={groupLabel(info)}
+                detail={count > 0 ? `${count} open` : undefined}
+                onPress={() => setTarget({ serverId: info.serverId, workspaceId: info.workspaceId })}
+              />
+            </Fragment>
+          );
+        })}
+      </>
+    );
     return (
       <View style={{ minWidth: 300 }}>
         {heading("New tab in…", onBack)}
-        <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: 8 }}>
-          {workspaces.length === 0 ? <Text style={{ color: theme.colors.foregroundMuted, padding: 12 }}>No projects</Text> : null}
-          {workspaces.map((info: HostWorkspace, index) => {
-            const count = tabCounts.get(key(info.serverId, info.workspaceId)) ?? 0;
-            const firstOfHost = index === 0 || workspaces[index - 1]!.serverId !== info.serverId;
-            return (
-              <Fragment key={key(info.serverId, info.workspaceId)}>
-                {manyHosts && firstOfHost ? (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 2 }}>
-                    <Icon name="Server" size={12} color={theme.colors.foregroundMuted} />
-                    <Text numberOfLines={1} style={{ fontSize: 11, color: theme.colors.foregroundMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                      {info.hostLabel}
-                    </Text>
-                  </View>
-                ) : null}
-                <Row
-                  theme={theme}
-                  leading={<ProjectBadge workspace={info} size={18} />}
-                  label={groupLabel(info)}
-                  detail={count > 0 ? `${count} open` : undefined}
-                  onPress={() => setTarget({ serverId: info.serverId, workspaceId: info.workspaceId })}
-                />
-              </Fragment>
-            );
-          })}
-        </ScrollView>
+        {phone ? (
+          <View style={LIST_PADDING}>{projects}</View>
+        ) : (
+          <ScrollView style={{ maxHeight: 420 }} nestedScrollEnabled contentContainerStyle={LIST_PADDING}>
+            {projects}
+          </ScrollView>
+        )}
       </View>
     );
   }

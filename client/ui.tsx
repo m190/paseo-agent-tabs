@@ -50,18 +50,20 @@ function DisplayMenu({ theme, close }: PluginPopoverProps) {
  * The tab list, or the new-tab menu in its place. For surfaces that cannot open a popover of their own:
  * the right panel and the header button's popover.
  */
-function ListOrNewTab({ theme, navigation, preset, close, list }: {
+function ListOrNewTab({ theme, navigation, preset, close, scrollsMenu, list }: {
   theme: Theme;
   navigation?: Navigation;
   /** The workspace that "+ new" starts with. */
   preset?: WorkspaceTarget;
   /** Called after a new tab opened. */
   close?: () => void;
+  /** Gives the new-tab menu a scroll view, for a surface that does not scroll its content. */
+  scrollsMenu?: boolean;
   list(openNew: (target?: WorkspaceTarget) => void): ReactNode;
 }) {
   const [newTab, setNewTab] = useState<{ target?: WorkspaceTarget } | null>(null);
   if (!newTab) return <>{list((target) => setNewTab({ target: target ?? preset }))}</>;
-  return (
+  const menu = (
     <NewTabMenu
       key={targetKey(newTab.target)}
       theme={theme}
@@ -73,6 +75,14 @@ function ListOrNewTab({ theme, navigation, preset, close, list }: {
         close?.();
       }}
     />
+  );
+  // "handled": a tap on a profile starts the tab also while the keyboard of the prompt field is open.
+  return scrollsMenu ? (
+    <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+      {menu}
+    </ScrollView>
+  ) : (
+    menu
   );
 }
 
@@ -181,6 +191,7 @@ export function AgentsPanel({ theme, host, layout, navigation, workspaceId }: Pl
         theme={theme}
         navigation={navigation}
         preset={current}
+        scrollsMenu
         list={(openNew) => (
           <TabListView
             combined={combined}
