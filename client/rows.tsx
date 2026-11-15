@@ -694,12 +694,14 @@ export function DisplayOptions({ theme, manyHosts, preview, onChoose }: {
  * A menu that floats over the content below its icon, for surfaces without a popover of the app. A tap
  * outside closes it. Put it last in a parent that covers the area, so it draws above the content.
  */
-export function FloatingMenu({ theme, top, right, maxWidth, onClose, children }: {
+export function FloatingMenu({ theme, top, right, maxWidth, onHeight, onClose, children }: {
   theme: Theme;
   top: number;
   right: number;
   /** The space there is; the menu is at most 320 wide. */
   maxWidth: number;
+  /** Gets the height of the menu, for a parent that must grow to hold it. */
+  onHeight?: (height: number) => void;
   onClose(): void;
   children: ReactNode;
 }) {
@@ -707,6 +709,7 @@ export function FloatingMenu({ theme, top, right, maxWidth, onClose, children }:
     <>
       <Pressable accessibilityLabel="Close menu" onPress={onClose} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} />
       <View
+        onLayout={onHeight ? (event: { nativeEvent: { layout: { height: number } } }) => onHeight(event.nativeEvent.layout.height) : undefined}
         style={{
           position: "absolute",
           top,
@@ -730,6 +733,8 @@ export function FloatingMenu({ theme, top, right, maxWidth, onClose, children }:
   );
 }
 
+const LIST_PADDING = { paddingHorizontal: 4, paddingBottom: 8 };
+
 interface TabListViewProps extends TabRowsProps {
   /** With the error, so the panel and the popover say when the list is old, as the sidebar does. */
   combined: Pick<Combined, "groups" | "hosts" | "workspaces" | "error">;
@@ -737,21 +742,34 @@ interface TabListViewProps extends TabRowsProps {
   header?: ReactNode;
   /** Set for a popover; a panel fills its space. */
   maxHeight?: number;
+  /**
+   * The list is in the app's sheet, which scrolls it, so the list has no scroll of its own. The app sizes the
+   * sheet from a scroll view in it, not from the header and the list: a short list made a sheet too short.
+   */
+  inSheet?: boolean;
 }
 
 /** The herdr agent panel: a header with the state counts and the icons, then the scrolling rows. */
-export function TabListView({ header, maxHeight, ...rows }: TabListViewProps) {
+export function TabListView({ header, maxHeight, inSheet, ...rows }: TabListViewProps) {
   const { theme, combined } = rows;
   const [display, setDisplay] = useState(false);
   const [width, setWidth] = useState(0);
+  const [menuHeight, setMenuHeight] = useState(0);
   const counts = countByStatus(combined.groups);
   const phone = usePhoneSize();
+  const menuTop = phone ? 42 : 34;
   // With a list, an error only marks it as old; without one, the error is all there is to show.
   const { error } = combined;
   const errorOnly = Boolean(error) && combined.groups.length === 0;
+  const list = errorOnly ? (
+    <Text style={{ color: statusColor("blocked", theme), fontSize: 11, padding: 12 }}>{error}</Text>
+  ) : (
+    <TabRows {...rows} />
+  );
   return (
     <View
-      style={{ flex: maxHeight ? undefined : 1 }}
+      // In the sheet a short list leaves no room for the display menu, so the view grows to hold it.
+      style={inSheet ? { minHeight: display ? menuTop + menuHeight + 8 : undefined } : { flex: maxHeight ? undefined : 1 }}
       onLayout={(event: { nativeEvent: { layout: { width: number } } }) => setWidth(event.nativeEvent.layout.width)}
     >
       {/* The surface already says "Agents" (panel tab, sheet title), so the header has the counts and the icons in one row. */}
@@ -768,20 +786,15 @@ export function TabListView({ header, maxHeight, ...rows }: TabListViewProps) {
         {header}
         <IconButton theme={theme} icon="Settings2" label="Display preferences" active={display} onPress={() => setDisplay(!display)} />
       </View>
-      {/* nestedScrollEnabled: on Android the list scrolls also inside the app's scrolling sheet. */}
-      <ScrollView
-        style={maxHeight ? { maxHeight } : { flex: 1 }}
-        nestedScrollEnabled
-        contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: 8 }}
-      >
-        {errorOnly ? (
-          <Text style={{ color: statusColor("blocked", theme), fontSize: 11, padding: 12 }}>{error}</Text>
-        ) : (
-          <TabRows {...rows} />
-        )}
-      </ScrollView>
+      {inSheet ? (
+        <View style={LIST_PADDING}>{list}</View>
+      ) : (
+        <ScrollView style={maxHeight ? { maxHeight } : { flex: 1 }} nestedScrollEnabled contentContainerStyle={LIST_PADDING}>
+          {list}
+        </ScrollView>
+      )}
       {display ? (
-        <FloatingMenu theme={theme} top={phone ? 42 : 34} right={4} maxWidth={width - 8} onClose={() => setDisplay(false)}>
+        <FloatingMenu theme={theme} top={menuTop} right={4} maxWidth={width - 8} onHeight={setMenuHeight} onClose={() => setDisplay(false)}>
           <DisplayOptions theme={theme} manyHosts={combined.hosts.length > 1} onChoose={() => setDisplay(false)} />
         </FloatingMenu>
       ) : null}
