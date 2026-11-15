@@ -1,5 +1,5 @@
 import { AppState, Platform } from "react-native";
-import { type AppLayoutState, type AppView, layoutView, shownFromPath } from "../../shared/app-view";
+import { type AppLayoutState, type AppView, layoutView, shownFromPath, type TabRef } from "../../shared/app-view";
 import { appModule } from "./bundle";
 import { shownWorkspace } from "./route";
 import { readSavedLayout } from "./storage";
@@ -80,6 +80,15 @@ function watchNative(listener: Listener): () => void {
   const timer = setInterval(tick, NATIVE_WATCH_MS);
   tick();
   return () => clearInterval(timer);
+}
+
+/**
+ * The selected tab of a workspace in the app now, see `AppView.tabOf`. Undefined also when the plugin cannot
+ * read the app.
+ */
+export async function selectedTabNow(ref: string): Promise<TabRef | null | undefined> {
+  const state = Platform.OS === "web" ? store?.getState() : await readSavedLayout();
+  return state ? layoutView(state, null).tabOf(ref) : undefined;
 }
 
 /** Calls `listener` with what the app shows, at each change or at short intervals. Returns the cleanup. */

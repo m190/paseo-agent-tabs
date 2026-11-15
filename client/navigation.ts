@@ -1,10 +1,11 @@
 import { Linking, Platform } from "react-native";
 import { withTimeout } from "../shared/async";
-import { sameTab } from "../shared/app-view";
+import { sameTab, workspaceRef } from "../shared/app-view";
 import { nextPadding, tabRoute } from "../shared/route";
 import type { Tab } from "../shared/tabs";
 import { setActiveTab } from "./active-tab";
 import { appModule } from "./app/bundle";
+import { selectedTabNow } from "./app/view";
 import { getActive, linkPadding, replaceReopen } from "./hub";
 
 // This plugin typechecks without the DOM library. Declare only what this module uses.
@@ -66,27 +67,47 @@ async function navigateWeb(route: string): Promise<void> {
 // is new to the app (a tab the plugin just created, or one created on another device) opens the workspace,
 // and then the app removes the tab again and selects another tab. When the refreshed list arrives, the app
 // adds the tab in the background. The plugin cannot read the app's list, so it sends the link again after the
-// refresh. When the first link worked, the repeats only open the tab that is open.
+// refresh.
 //
-// Known limit: in the native app, a tab that the user selects in the app's tab bar during the repeats
-// (2.5 s) is undone. The plugin cannot tell this choice from the stale list without an API of the app.
+// A repeat is a navigation: in the native app it closes a drawer that the user opened again, and it undoes
+// a tab that the user selects in the app's tab bar. So before each repeat, the plugin reads the app. When the
+// tab is the selected tab of its workspace, the link worked and the repeats stop: a later change of the tab
+// is the user's own choice. When the plugin cannot read the app, it sends each repeat.
+//
+// Known limit: in the native app, a tab that the user selects in the app's tab bar before the plugin saw the
+// opened tab (1 s, or 2.5 s for a tab that is new to the app) is undone. The plugin cannot tell this choice
+// from the stale list without an API of the app.
 
 const REOPEN_MS = [1_000, 2_500];
+
+/** True when the tab is the selected tab of its workspace in the app. False also when the plugin cannot read the app. */
+async function appShowsTab(serverId: string, tab: Tab): Promise<boolean> {
+  const selected = await selectedTabNow(workspaceRef(serverId, tab.workspaceId)).catch(() => undefined);
+  return selected != null && sameTab(selected, tab);
+}
 
 export function openTab(serverId: string, tab: Tab, navigation?: Navigation): void {
   setActiveTab(serverId, tab);
   sendLink(serverId, tab, navigation);
+  let stopped = false;
+  const repeat = async () => {
+    const shown = await appShowsTab(serverId, tab);
+    if (stopped) return;
+    if (shown) return cancel();
+    // The highlight stays on this tab during the repeats (see active-tab.ts) unless the user closed it.
+    const active = getActive();
+    if (active?.serverId === serverId && sameTab(active.tab, tab)) sendLink(serverId, tab, navigation);
+  };
   const timers = REOPEN_MS.map((delay, index) =>
     setTimeout(() => {
-      // The highlight stays on this tab during the repeats (see active-tab.ts) unless the user closed it.
-      const active = getActive();
-      if (active?.serverId === serverId && sameTab(active.tab, tab)) sendLink(serverId, tab, navigation);
+      void repeat();
       if (index === REOPEN_MS.length - 1) stopWatching();
     }, delay),
   );
   // On web and desktop, the next click, key press, or browser Back stops the repeats. Without this, the
   // repeats would undo a tab that the user selects in the app's own tab bar.
   const cancel = () => {
+    stopped = true;
     timers.forEach(clearTimeout);
     stopWatching();
   };

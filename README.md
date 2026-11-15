@@ -59,8 +59,8 @@ The agent of a terminal comes from its Paseo terminal profile. A terminal with i
 ## Known limits
 
 - Paseo's own project list stays visible. A plugin cannot filter it.
-- The app refreshes its terminal list of a project only while it shows that project. So a link to a new tab can show the old tab first. The plugin sends the link again after 1 and 2.5 seconds. The repeats stop when you open another tab or close the tab. On web and desktop, they also stop when you click, press a key, or go back.
-- On a phone, a tab that you select in the app's tab bar less than 2.5 seconds after you open a row goes back to that row.
+- The app refreshes its terminal list of a project only while it shows that project. So a link to a tab that is new to the app can show the old tab first. The plugin looks again after 1 and 2.5 seconds, and sends the link again if the app does not show the tab. When the app shows the tab, the plugin stops. The repeats also stop when you open another tab or close the tab. On web and desktop, they also stop when you click, press a key, or go back.
+- On a phone, a tab that you select in the app's tab bar less than 1 second after you open a row goes back to that row. For a row that is new to the app, this time can be 2.5 seconds.
 - On a phone, the app does not save its open sheets. While a sheet shows a tab, the highlight stays on the tab under the sheet.
 
 ## Compatibility
