@@ -50,13 +50,14 @@ function DisplayMenu({ theme, close }: PluginPopoverProps) {
 
 /**
  * The tab list, or the new-tab menu in its place. For surfaces that cannot open a popover of their own:
- * the right panel and the header button's popover.
+ * the sidebar view, the right panel and the header button's popover.
+ *
+ * One rule on every surface: the header "+" asks for the project first, also in a workspace's own panel, so
+ * each project can be reached from there. The "+" on a project header starts with that project.
  */
-function ListOrNewTab({ theme, navigation, preset, close, scrollsMenu, list }: {
+function ListOrNewTab({ theme, navigation, close, scrollsMenu, list }: {
   theme: Theme;
   navigation?: Navigation;
-  /** The workspace that "+ new" starts with. */
-  preset?: WorkspaceTarget;
   /** Called after a new tab opened. */
   close?: () => void;
   /** Gives the new-tab menu a scroll view, for a surface that does not scroll its content. */
@@ -64,7 +65,7 @@ function ListOrNewTab({ theme, navigation, preset, close, scrollsMenu, list }: {
   list(openNew: (target?: WorkspaceTarget) => void): ReactNode;
 }) {
   const [newTab, setNewTab] = useState<{ target?: WorkspaceTarget } | null>(null);
-  if (!newTab) return <>{list((target) => setNewTab({ target: target ?? preset }))}</>;
+  if (!newTab) return <>{list((target) => setNewTab({ target }))}</>;
   const menu = (
     <NewTabMenu
       key={targetKey(newTab.target)}
@@ -200,7 +201,6 @@ export function AgentsSidebarView({ theme, layout, active, dismiss }: PluginSide
   return (
     <View style={{ flex: 1 }}>
       <RouteAnchor />
-      {/* No preset project: the sidebar is not part of one workspace, so "+" asks for the project, as the sidebar item does. */}
       <ListOrNewTab
         theme={theme}
         // On a phone the view is in a drawer, which closes when a tab opens.
@@ -251,7 +251,6 @@ export function AgentsPanel({ theme, host, layout, navigation, workspaceId }: Pl
       <ListOrNewTab
         theme={theme}
         navigation={navigation}
-        preset={current}
         scrollsMenu
         list={(openNew) => (
           <TabListView
@@ -286,7 +285,6 @@ export function AgentsPopover({ theme, host, layout, close, workspaceId }: Plugi
       <RouteAnchor />
       <ListOrNewTab
         theme={theme}
-        preset={current}
         close={close}
         list={(openNew) => (
           <TabListView
