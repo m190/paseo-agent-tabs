@@ -1,12 +1,12 @@
 import { Linking, Platform } from "react-native";
 import { withTimeout } from "../shared/async";
 import { sameTab, workspaceRef } from "../shared/app-view";
-import { nextPadding, tabRoute } from "../shared/route";
+import { type AppOpenInput, appOpenInput, nextPadding, tabRoute } from "../shared/route";
 import type { Tab } from "../shared/tabs";
 import { setActiveTab } from "./active-tab";
 import { appModule } from "./app/bundle";
 import { selectedTabNow } from "./app/view";
-import { getActive, linkPadding, replaceReopen } from "./hub";
+import { getActive, linkPadding, openTabInApp, replaceReopen } from "./hub";
 
 // This plugin typechecks without the DOM library. Declare only what this module uses.
 declare const window: {
@@ -24,22 +24,38 @@ export interface Navigation {
 
 const CLICK_WAIT_MS = 1_500;
 
-// ---------- The app's in-place navigation (web and desktop) ----------
+// ---------- The ways to open a tab ----------
 //
-// A history change makes the app reset its whole navigation, so the window draws again. The app has its
-// own `navigateToHostWorkspaceRoute(route)` for this case, which the plugin finds in the app bundle (see
-// app/bundle.ts). When the lookup fails, the plugin uses the history change, which works but redraws the window.
+// The app must select the tab BEFORE it shows the workspace. If the app shows the workspace first, it shows
+// the workspace's last tab for one render and reports that tab as seen, so the "done" state of a tab that the
+// user did not open goes away. The plugin uses the first way that is available:
+//
+// 1. The app's functions for plugins (see app/opener.tsx). They select the tab first, on every platform.
+// 2. Web and desktop: `navigateToWorkspace(input)` from the app bundle (see app/bundle.ts), which is the
+//    function behind 1. It is for an older app, for a tab that the app's lists do not have yet, and for an
+//    agent tab while no view with a function for agents is on screen.
+// 3. The route with `?open=`, for which the app shows the workspace first. On web and desktop the route goes
+//    to `navigateToHostWorkspaceRoute(route)` from the app bundle, or into a history change, which makes the
+//    app reset its whole navigation, so the window draws again. In the native app the route is a link.
 
+type WorkspaceNavigator = (input: AppOpenInput) => void;
 type RouteNavigator = (route: string) => void;
 
-const routeNavigator = appModule<RouteNavigator>("navigateToHostWorkspaceRoute=function", (module) => {
-  const navigate = (module as { navigateToHostWorkspaceRoute?: unknown } | null)?.navigateToHostWorkspaceRoute;
-  return typeof navigate === "function" ? (route) => (navigate as RouteNavigator)(route) : null;
-});
+function appFunction<T>(name: string): () => Promise<T | null> {
+  return appModule<T>(`${name}=function`, (module) => {
+    const found = (module as Record<string, unknown> | null)?.[name];
+    return typeof found === "function" ? (found as T) : null;
+  });
+}
 
-/** Starts the lookup early, so the first click does not wait for it. */
+const workspaceNavigator = appFunction<WorkspaceNavigator>("navigateToWorkspace");
+const routeNavigator = appFunction<RouteNavigator>("navigateToHostWorkspaceRoute");
+
+/** Starts the lookups early, so the first click does not wait for them. */
 export function prepareNavigation(): void {
-  if (Platform.OS === "web") void routeNavigator();
+  if (Platform.OS !== "web") return;
+  void workspaceNavigator();
+  void routeNavigator();
 }
 
 function pushRoute(route: string): void {
@@ -47,17 +63,30 @@ function pushRoute(route: string): void {
   window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
 }
 
-async function navigateWeb(route: string): Promise<void> {
-  const navigate = await withTimeout(routeNavigator(), CLICK_WAIT_MS, "").catch(() => null);
-  if (navigate) {
+/**
+ * Ways 2 and 3 on web and desktop. The two lookups read the same bundle, so they end together. The wait for
+ * them can be long after the page loads; the user can make another choice in that time, and then `wanted` is
+ * false and this request stops.
+ */
+async function navigateWeb(serverId: string, tab: Tab, wanted: () => boolean): Promise<void> {
+  const lookups = Promise.all([workspaceNavigator(), routeNavigator()]);
+  const [openInWorkspace, showRoute] = await withTimeout(lookups, CLICK_WAIT_MS, "").catch(() => [null, null]);
+  if (!wanted()) return;
+  const route = tabRoute(serverId, tab);
+  const ways = [
+    openInWorkspace && (() => openInWorkspace(appOpenInput(serverId, tab))),
+    showRoute && (() => showRoute(route)),
+    () => pushRoute(route),
+  ];
+  for (const way of ways) {
+    if (!way) continue;
     try {
-      navigate(route);
+      way();
       return;
     } catch {
-      // Use the history change below.
+      // Use the next way.
     }
   }
-  pushRoute(route);
 }
 
 // ---------- Opening a tab ----------
@@ -86,22 +115,38 @@ async function appShowsTab(serverId: string, tab: Tab): Promise<boolean> {
   return selected != null && sameTab(selected, tab);
 }
 
+/** True while the tab is the last one that the user opened from the plugin, and the user did not close it. */
+function isWanted(serverId: string, tab: Tab): boolean {
+  const active = getActive();
+  return active?.serverId === serverId && sameTab(active.tab, tab);
+}
+
+/** Asks the app one time to show the tab, with the first way that is available. Stops when `wanted` becomes false. */
+async function show(serverId: string, tab: Tab, wanted: () => boolean, navigation?: Navigation): Promise<void> {
+  if (openTabInApp(serverId, tab)) return;
+  if (Platform.OS === "web") await navigateWeb(serverId, tab, wanted);
+  else sendLink(serverId, tab, navigation);
+}
+
 export function openTab(serverId: string, tab: Tab, navigation?: Navigation): void {
   setActiveTab(serverId, tab);
-  sendLink(serverId, tab, navigation);
+  // The first request stops at the next open from the plugin. A repeat stops also at the user's next input
+  // in the app (see `cancel`): the user's own choice of a tab is kept.
+  const wanted = () => isWanted(serverId, tab);
+  void show(serverId, tab, wanted, navigation);
   let stopped = false;
   const repeat = async () => {
     const shown = await appShowsTab(serverId, tab);
     if (stopped) return;
     if (shown) return cancel();
-    // The highlight stays on this tab during the repeats (see active-tab.ts) unless the user closed it.
-    const active = getActive();
-    if (active?.serverId === serverId && sameTab(active.tab, tab)) sendLink(serverId, tab, navigation);
+    // The highlight stays on this tab during the repeats (see active-tab.ts).
+    if (wanted()) await show(serverId, tab, () => !stopped && wanted(), navigation);
   };
   const timers = REOPEN_MS.map((delay, index) =>
     setTimeout(() => {
-      void repeat();
-      if (index === REOPEN_MS.length - 1) stopWatching();
+      const done = repeat();
+      // The watch for the user's input ends when the last repeat ends.
+      if (index === REOPEN_MS.length - 1) void done.then(stopWatching, stopWatching);
     }, delay),
   );
   // On web and desktop, the next click, key press, or browser Back stops the repeats. Without this, the
@@ -142,10 +187,6 @@ function onNextInput(callback: () => void): () => void {
 // The padding is random, so a plugin reload does not start from a value that the route still holds. The last
 // padding lives in the shared hub, because each host's plugin copy can send the link.
 function sendLink(serverId: string, tab: Tab, navigation?: Navigation): void {
-  if (Platform.OS === "web") {
-    void navigateWeb(tabRoute(serverId, tab));
-    return;
-  }
   const routeKey = `${serverId}/${tab.workspaceId}`;
   const lastPadding = linkPadding();
   const padding = nextPadding(lastPadding.get(routeKey));

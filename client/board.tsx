@@ -15,7 +15,7 @@ import { AgentRow, DisplayOptions, FloatingMenu, GroupHeader, HostHeader, IconBu
 import { useFolding } from "./folding";
 import { useCombined, useNow } from "./store";
 import { statusColor, SYMBOL, SYMBOL_SCALE, type Theme } from "./style";
-import { RouteAnchor } from "./app/route";
+import { AppAnchor } from "./app/anchor";
 
 // This plugin typechecks without the DOM library. Declare only what this module uses.
 interface KeyEvent {
@@ -249,7 +249,7 @@ export function BoardScreen({ theme, layout, navigation }: PluginScreenProps) {
       style={{ flex: 1, backgroundColor: theme.colors.surface0 }}
       onLayout={(event: { nativeEvent: { layout: { width: number } } }) => setWidth(event.nativeEvent.layout.width)}
     >
-      <RouteAnchor />
+      <AppAnchor openAgentId={navigation?.openAgent} />
       {/* The filters and the icons stay at the top; only the cards scroll. The host's screen header already says "Agents". */}
       <View
         style={{ paddingHorizontal: padding, paddingTop: compact ? 6 : 16, paddingBottom: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: theme.colors.border }}

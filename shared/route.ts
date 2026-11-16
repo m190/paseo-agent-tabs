@@ -42,6 +42,21 @@ export function tabRoute(serverId: string, tab: { kind: string; id: string; work
   return `/h/${encodeURIComponent(serverId)}/workspace/${workspaceSegment(tab.workspaceId)}?open=${open}`;
 }
 
+/** The input of the app's `navigateToWorkspace`, for a tab. */
+export interface AppOpenInput {
+  serverId: string;
+  workspaceId: string;
+  target: { kind: "terminal"; terminalId: string } | { kind: "agent"; agentId: string };
+  pin: boolean;
+}
+
+/** As the app does for the route: an agent tab is pinned, a terminal tab is not. */
+export function appOpenInput(serverId: string, tab: { kind: "terminal" | "agent"; id: string; workspaceId: string }): AppOpenInput {
+  const agent = tab.kind === "agent";
+  const target = agent ? ({ kind: "agent", agentId: tab.id } as const) : ({ kind: "terminal", terminalId: tab.id } as const);
+  return { serverId, workspaceId: tab.workspaceId, target, pin: agent };
+}
+
 /** A padding from 1 to MAX_PADDING that differs from the last one sent to the same workspace. */
 export function nextPadding(last: number | undefined, random: () => number = Math.random): number {
   const pick = 1 + Math.floor(random() * (MAX_PADDING - 1));

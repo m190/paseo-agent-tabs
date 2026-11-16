@@ -46,7 +46,8 @@ Codex 0.167 and later runs its sessions in a shared `codex app-server` process b
 
 - Terminal screens: every 2 seconds, the plugin server reads the last 120 rows of each Claude Code and Codex terminal. It looks at the bottom lines for background shells, dialogs and Codex's working line. While the board is open, it also reads the last lines of every terminal for the previews, every 3 seconds, unless the previews are off.
 - Paseo's lists: terminals, agents, workspaces and projects from the daemon of each host.
-- The app's script bundle (web and desktop): the plugin finds the app's navigation function and workspace layout store in it. On iOS and Android it opens a `paseo://` link and reads the app's saved layout and current route.
+- The app's lists of terminals and agents (Paseo 0.16 and later), to open a tab with the app's own function.
+- The app's script bundle (web and desktop): the plugin finds the app's navigation function and workspace layout store in it. On iOS and Android it reads the app's saved layout and current route.
 
 All of this stays between your Paseo daemons and your Paseo app. The plugin sends nothing to other services.
 
@@ -70,7 +71,7 @@ Tested with Paseo 0.15.x and 0.16.0 on macOS, Linux (Raspberry Pi), the web app,
 The public plugin API does not give everything this plugin needs yet. So it uses some Paseo internals, and a new Paseo version can break it:
 
 - The terminal title and the agent activity come from Paseo's internal daemon client (`server/host-daemon.ts`). Its types are copied into that file, because Paseo cannot resolve the client package when it builds a plugin from Git.
-- On web and desktop, a tab opens through the app's own navigation function, which the plugin finds in the app bundle (`client/navigation.ts`). On native apps it uses a `paseo://` link.
+- In Paseo 0.16 and later, a tab opens through the plugin API (`client/app/opener.tsx`). The other ways are for an older app, for a tab that the app's lists do not have, and for an agent tab while no view with a function for agents is on screen: on web and desktop the app's own navigation function, which the plugin finds in the app bundle (`client/navigation.ts`), and on native apps a `paseo://` link.
 - The highlighted row follows the tab that the app shows (`client/app/`). On web and desktop, the plugin reads the app's workspace layout store, which it finds in the app bundle. On native apps, it reads the app's saved copy of that store and the app's current route. When these reads fail, the highlight is the last row you opened.
 
 ## Development

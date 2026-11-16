@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MAX_PADDING, nextPadding, tabRoute, workspaceSegment } from "../shared/route";
+import { MAX_PADDING, appOpenInput, nextPadding, tabRoute, workspaceSegment } from "../shared/route";
 
 test("workspace ids follow the app's path encoding", () => {
   assert.equal(workspaceSegment("wks_0123456789abcdef"), "wks_0123456789abcdef");
@@ -25,4 +25,19 @@ test("the next padding is in range and never the last one", () => {
       assert.notEqual(padding, last);
     }
   }
+});
+
+test("the app input names the tab as the app does, and pins only an agent", () => {
+  assert.deepEqual(appOpenInput("srv_1", { kind: "terminal", id: "abc", workspaceId: "/Users/me/repo" }), {
+    serverId: "srv_1",
+    workspaceId: "/Users/me/repo",
+    target: { kind: "terminal", terminalId: "abc" },
+    pin: false,
+  });
+  assert.deepEqual(appOpenInput("srv_1", { kind: "agent", id: "agt", workspaceId: "wks_1" }), {
+    serverId: "srv_1",
+    workspaceId: "wks_1",
+    target: { kind: "agent", agentId: "agt" },
+    pin: true,
+  });
 });

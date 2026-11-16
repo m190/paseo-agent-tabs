@@ -20,7 +20,7 @@ import { Icon, ScrollView } from "@getpaseo/plugin/client/ui";
 import { useKeptScroll } from "./scroll";
 import { useCombined } from "./store";
 import { statusColor, SYMBOL, SYMBOL_SCALE, type Theme } from "./style";
-import { RouteAnchor } from "./app/route";
+import { AppAnchor } from "./app/anchor";
 
 export const BOARD_SCREEN_ID = "board";
 
@@ -125,7 +125,7 @@ function AgentsSidebarItem({ theme, host, layout, openScreen, openPopover }: Plu
   const errorOnly = Boolean(error) && groups.length === 0;
   return (
     <View style={{ paddingHorizontal: 4, paddingBottom: collapsed ? 0 : 6 }}>
-      <RouteAnchor />
+      <AppAnchor />
       <View style={{ flexDirection: "row", alignItems: "center", height: phone ? 44 : 36, paddingLeft: 12, paddingRight: 8, gap: 2 }}>
         <Pressable
           accessibilityRole="button"
@@ -193,14 +193,14 @@ function AgentsSidebarItem({ theme, host, layout, openScreen, openPopover }: Plu
 // The user selects it for each device in Settings > Sidebar > Sidebar view (Paseo 0.16 and later). The app
 // draws one view for all hosts, between the sidebar's navigation rows and its footer.
 
-export function AgentsSidebarView({ theme, layout, active, dismiss }: PluginSidebarViewProps) {
+export function AgentsSidebarView({ theme, layout, active, navigation, dismiss }: PluginSidebarViewProps) {
   const combined = useCombined();
   const activeKey = useActiveKey();
   useEffect(() => showSidebarView(), []);
   const current = active.workspace ? { serverId: active.workspace.hostId, workspaceId: active.workspace.id } : undefined;
   return (
     <View style={{ flex: 1 }}>
-      <RouteAnchor />
+      <AppAnchor openAgentRef={navigation?.openAgent} />
       <ListOrNewTab
         theme={theme}
         // On a phone the view is in a drawer, which closes when a tab opens.
@@ -247,7 +247,7 @@ export function AgentsPanel({ theme, host, layout, navigation, workspaceId }: Pl
   const current = { serverId: host.id, workspaceId };
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.surface0 }}>
-      <RouteAnchor />
+      <AppAnchor openAgentId={navigation?.openAgent} />
       <ListOrNewTab
         theme={theme}
         navigation={navigation}
@@ -282,7 +282,7 @@ export function AgentsPopover({ theme, host, layout, close, workspaceId }: Plugi
   const current = { serverId: host.id, workspaceId };
   return (
     <View style={layout.compact ? undefined : { minWidth: 340 }}>
-      <RouteAnchor />
+      <AppAnchor />
       <ListOrNewTab
         theme={theme}
         close={close}

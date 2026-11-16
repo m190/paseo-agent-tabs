@@ -47,6 +47,8 @@ interface Shared {
   scroll?: Map<string, number>;
   /** The app's navigation (native app), see app/route.ts. */
   navigation?: AppNavigation;
+  /** The app's own functions to open a tab, see app/opener.tsx. Optional: older copies do not set it. */
+  tabOpeners?: Set<TabOpener>;
   /** The number of sidebar views on screen, see ui.tsx. Optional: older copies do not set it. */
   views?: number;
   viewListeners?: Set<() => void>;
@@ -65,7 +67,7 @@ function shared(): Shared {
   return global[KEY];
 }
 
-function listen(listeners: Set<() => void>, listener: () => void): () => void {
+function listen<T>(listeners: Set<T>, listener: T): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
@@ -132,6 +134,30 @@ export function getAppNavigation(): AppNavigation | undefined {
 
 export function setAppNavigation(navigation: AppNavigation): void {
   shared().navigation = navigation;
+}
+
+// ---------- The app's own functions to open a tab ----------
+
+/** True when the app got the request; false when the opener is not for this kind, or the app does not know the tab. */
+export type TabOpener = (serverId: string, tab: Pick<Tab, "kind" | "id">) => boolean;
+
+/** Call while the opener can be used. Returns the cleanup. */
+export function addTabOpener(open: TabOpener): () => void {
+  const state = shared();
+  state.tabOpeners ??= new Set();
+  return listen(state.tabOpeners, open);
+}
+
+/** Opens the tab with the newest opener that can. False when there is none. */
+export function openTabInApp(serverId: string, tab: Pick<Tab, "kind" | "id">): boolean {
+  for (const open of [...(shared().tabOpeners ?? [])].reverse()) {
+    try {
+      if (open(serverId, tab)) return true;
+    } catch {
+      // Try the next opener.
+    }
+  }
+  return false;
 }
 
 // ---------- Sidebar view ----------
