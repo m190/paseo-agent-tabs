@@ -3,12 +3,14 @@ import type {
   PluginButtonIconProps,
   PluginPopoverProps,
   PluginSidebarItemProps,
+  PluginSidebarViewProps,
   PluginWorkspacePanelProps,
 } from "@getpaseo/plugin/client";
-import { type ReactNode, useCallback, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Pressable, Text, useWindowDimensions, View } from "react-native";
 import type { Tab } from "../shared/tabs";
 import { useActiveKey } from "./active-tab";
+import { showSidebarView, sidebarViewShown, subscribeSidebarView } from "./hub";
 import { allTabs, ATTENTION, countByStatus, rollup, targetKey, total, type WorkspaceTarget } from "./model";
 import { type Navigation, openTab } from "./navigation";
 import { NewTabMenu } from "./new-tab";
@@ -88,7 +90,13 @@ function ListOrNewTab({ theme, navigation, preset, close, scrollsMenu, list }: {
 
 // ---------- Left sidebar: the herdr agent list ----------
 
-export function AgentsSidebar({ theme, host, layout, openScreen, openPopover }: PluginSidebarItemProps) {
+export function AgentsSidebar(props: PluginSidebarItemProps) {
+  // The sidebar view shows the same list with more room, so the two never show together.
+  const viewShown = useSyncExternalStore(subscribeSidebarView, sidebarViewShown, sidebarViewShown);
+  return viewShown ? null : <AgentsSidebarItem {...props} />;
+}
+
+function AgentsSidebarItem({ theme, host, layout, openScreen, openPopover }: PluginSidebarItemProps) {
   // The tabs of every host with the plugin, whichever host's copy the app shows here.
   const combined = useCombined();
   const { groups, error, loaded } = combined;
@@ -174,6 +182,58 @@ export function AgentsSidebar({ theme, host, layout, openScreen, openPopover }: 
           ) : null}
         </>
       )}
+    </View>
+  );
+}
+
+// ---------- Sidebar view: the list in place of Paseo's workspace list ----------
+//
+// The user selects it for each device in Settings > Sidebar > Sidebar view (Paseo 0.16 and later). The app
+// draws one view for all hosts, between the sidebar's navigation rows and its footer.
+
+export function AgentsSidebarView({ theme, layout, active, dismiss }: PluginSidebarViewProps) {
+  const combined = useCombined();
+  const activeKey = useActiveKey();
+  useEffect(() => showSidebarView(), []);
+  const current = active.workspace ? { serverId: active.workspace.hostId, workspaceId: active.workspace.id } : undefined;
+  return (
+    <View style={{ flex: 1 }}>
+      <RouteAnchor />
+      <ListOrNewTab
+        theme={theme}
+        preset={current}
+        // On a phone the view is in a drawer, which closes when a tab opens.
+        close={dismiss}
+        scrollsMenu
+        list={(openNew) => (
+          <TabListView
+            combined={combined}
+            theme={theme}
+            compact={layout.compact}
+            activeKey={activeKey}
+            current={current}
+            scrollKey="sidebar-view"
+            inSidebar
+            onOpen={(serverId, tab) => {
+              openTab(serverId, tab);
+              dismiss();
+            }}
+            onNew={openNew}
+            header={
+              <>
+                <NewButton theme={theme} onPress={() => openNew()} />
+                <BoardButton
+                  theme={theme}
+                  onPress={() => {
+                    openBoard();
+                    dismiss();
+                  }}
+                />
+              </>
+            }
+          />
+        )}
+      />
     </View>
   );
 }

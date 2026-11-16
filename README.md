@@ -18,7 +18,7 @@ Paseo's own lists show Paseo agents. Many people run Claude Code and Codex in pl
 
 Exact states come from Paseo's agent hooks. An agent without hooks shows working while its title or screen shows work, and idle otherwise.
 
-It shows in the left sidebar, on an "Agents" board screen, in a right-side panel, and behind a header button in every workspace. You can open a tab, start a new one from a Paseo terminal profile, or close one. In the "By project" sort, a click on a project name folds it: the project then shows its state counts and only its blocked and done tabs. The display menu folds or unfolds all projects. See [OVERVIEW.md](OVERVIEW.md) for a short tour.
+It shows in the left sidebar, on an "Agents" board screen, in a right-side panel, and behind a header button in every workspace. In Paseo 0.16 and later, it can also replace the workspace list of the sidebar: select "Agents" in Settings → Sidebar → Sidebar view (a setting for each device). You can open a tab, start a new one from a Paseo terminal profile, or close one. In the "By project" sort, a click on a project name folds it: the project then shows its state counts and only its blocked and done tabs. The display menu folds or unfolds all projects. See [OVERVIEW.md](OVERVIEW.md) for a short tour.
 
 ![The agents board](assets/board.png)
 
@@ -58,14 +58,14 @@ The agent of a terminal comes from its Paseo terminal profile. A terminal with i
 
 ## Known limits
 
-- Paseo's own project list stays visible. A plugin cannot filter it.
+- With the default sidebar view, Paseo's own project list stays visible, and a plugin cannot filter it. In Paseo 0.16 and later, the "Agents" sidebar view replaces that list.
 - The app refreshes its terminal list of a project only while it shows that project. So a link to a tab that is new to the app can show the old tab first. The plugin looks again after 1 and 2.5 seconds, and sends the link again if the app does not show the tab. When the app shows the tab, the plugin stops. The repeats also stop when you open another tab or close the tab. On web and desktop, they also stop when you click, press a key, or go back.
 - On a phone, a tab that you select in the app's tab bar less than 1 second after you open a row goes back to that row. For a row that is new to the app, this time can be 2.5 seconds.
 - On a phone, the app does not save its open sheets. While a sheet shows a tab, the highlight stays on the tab under the sheet.
 
 ## Compatibility
 
-Tested with Paseo 0.15.x on macOS, Linux (Raspberry Pi), the web app, the desktop app, and the Android app. The manifest accepts Paseo 0.15.0 and later.
+Tested with Paseo 0.15.x and 0.16.0 on macOS, Linux (Raspberry Pi), the web app, the desktop app, and the Android app. The manifest accepts Paseo 0.15.0 and later. The sidebar view needs Paseo 0.16.0 or later.
 
 The public plugin API does not give everything this plugin needs yet. So it uses some Paseo internals, and a new Paseo version can break it:
 

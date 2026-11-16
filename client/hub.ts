@@ -47,6 +47,9 @@ interface Shared {
   scroll?: Map<string, number>;
   /** The app's navigation (native app), see app/route.ts. */
   navigation?: AppNavigation;
+  /** The number of sidebar views on screen, see ui.tsx. Optional: older copies do not set it. */
+  views?: number;
+  viewListeners?: Set<() => void>;
 }
 
 function shared(): Shared {
@@ -129,6 +132,34 @@ export function getAppNavigation(): AppNavigation | undefined {
 
 export function setAppNavigation(navigation: AppNavigation): void {
   shared().navigation = navigation;
+}
+
+// ---------- Sidebar view ----------
+//
+// The user can select the plugin's sidebar view in the app's settings. The view and the sidebar item show
+// the same list, and one copy draws the view while another can draw the item. So the view says here that
+// it is on screen, and the item hides.
+
+/** Call while a sidebar view is on screen. Returns the cleanup. */
+export function showSidebarView(): () => void {
+  changeViews(1);
+  return () => changeViews(-1);
+}
+
+function changeViews(by: number): void {
+  const state = shared();
+  state.views = (state.views ?? 0) + by;
+  for (const listener of state.viewListeners ?? []) listener();
+}
+
+export function sidebarViewShown(): boolean {
+  return (shared().views ?? 0) > 0;
+}
+
+export function subscribeSidebarView(listener: () => void): () => void {
+  const state = shared();
+  state.viewListeners ??= new Set();
+  return listen(state.viewListeners, listener);
 }
 
 // ---------- Link padding ----------

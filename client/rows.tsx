@@ -24,6 +24,7 @@ import {
 import { useFolding } from "./folding";
 import { PROFILE_ICONS } from "./profile-icons";
 import { useHostMode, usePreviewSize, useSort } from "./prefs";
+import { useKeptScroll } from "./scroll";
 import { closeTab, errorMessage } from "./close";
 import { useCombined, useNow } from "./store";
 import { projectColor, SHELL_SYMBOL, statusColor, SYMBOL, SYMBOL_SCALE, type Theme } from "./style";
@@ -747,11 +748,16 @@ interface TabListViewProps extends TabRowsProps {
    * sheet from a scroll view in it, not from the header and the list: a short list made a sheet too short.
    */
   inSheet?: boolean;
+  /** Keeps the scroll position under this name when the app draws the list again (see scroll.ts). */
+  scrollKey?: string;
+  /** The list is in the left sidebar: the header lines up with Paseo's own section headers there. */
+  inSidebar?: boolean;
 }
 
 /** The herdr agent panel: a header with the state counts and the icons, then the scrolling rows. */
-export function TabListView({ header, maxHeight, inSheet, ...rows }: TabListViewProps) {
+export function TabListView({ header, maxHeight, inSheet, scrollKey, inSidebar, ...rows }: TabListViewProps) {
   const { theme, combined } = rows;
+  const kept = useKeptScroll(scrollKey ?? "");
   const [display, setDisplay] = useState(false);
   const [width, setWidth] = useState(0);
   const [menuHeight, setMenuHeight] = useState(0);
@@ -773,7 +779,7 @@ export function TabListView({ header, maxHeight, inSheet, ...rows }: TabListView
       onLayout={(event: { nativeEvent: { layout: { width: number } } }) => setWidth(event.nativeEvent.layout.width)}
     >
       {/* The surface already says "Agents" (panel tab, sheet title), so the header has the counts and the icons in one row. */}
-      <View style={{ flexDirection: "row", alignItems: "center", height: phone ? 44 : 36, paddingLeft: 12, paddingRight: 4, gap: 6 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", height: phone ? 44 : 36, paddingLeft: inSidebar ? 16 : 12, paddingRight: inSidebar ? 8 : 4, gap: 6 }}>
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12 }}>{`${total(counts)} tabs`}</Text>
           <AttentionCounts counts={counts} theme={theme} />
@@ -789,12 +795,17 @@ export function TabListView({ header, maxHeight, inSheet, ...rows }: TabListView
       {inSheet ? (
         <View style={LIST_PADDING}>{list}</View>
       ) : (
-        <ScrollView style={maxHeight ? { maxHeight } : { flex: 1 }} nestedScrollEnabled contentContainerStyle={LIST_PADDING}>
+        <ScrollView
+          {...(scrollKey ? kept : null)}
+          style={maxHeight ? { maxHeight } : { flex: 1 }}
+          nestedScrollEnabled
+          contentContainerStyle={LIST_PADDING}
+        >
           {list}
         </ScrollView>
       )}
       {display ? (
-        <FloatingMenu theme={theme} top={menuTop} right={4} maxWidth={width - 8} onHeight={setMenuHeight} onClose={() => setDisplay(false)}>
+        <FloatingMenu theme={theme} top={menuTop} right={inSidebar ? 8 : 4} maxWidth={width - 8} onHeight={setMenuHeight} onClose={() => setDisplay(false)}>
           <DisplayOptions theme={theme} manyHosts={combined.hosts.length > 1} onChoose={() => setDisplay(false)} />
         </FloatingMenu>
       ) : null}

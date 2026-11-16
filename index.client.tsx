@@ -4,7 +4,7 @@ import { BoardScreen } from "./client/board";
 import { syncHeaderButtons } from "./client/header-buttons";
 import { prepareNavigation } from "./client/navigation";
 import { startSource } from "./client/store";
-import { AgentsPanel, AgentsSidebar, BOARD_SCREEN_ID, setBoardOpener } from "./client/ui";
+import { AgentsPanel, AgentsSidebar, AgentsSidebarView, BOARD_SCREEN_ID, setBoardOpener } from "./client/ui";
 
 /**
  * Registers one part of the plugin. An older app may lack a registration function; then only that part
@@ -30,6 +30,14 @@ export default function contribute(client: PluginClientContext) {
     watchActiveTab(),
     optional("Board screen", () => client.addScreen({ id: BOARD_SCREEN_ID, title: "Agents", Component: BoardScreen })),
     optional("Sidebar list", () => client.addSidebarHeaderItem({ id: "agents", title: "Agents", Component: AgentsSidebar })),
+    optional("Sidebar view", () =>
+      client.addSidebarView({
+        id: "agents",
+        title: "Agents",
+        description: "The tabs of every host with their state, in place of the workspace list.",
+        Component: AgentsSidebarView,
+      }),
+    ),
     optional("Right panel", () =>
       client.addWorkspacePanel({ id: "agents", title: "Agents", icon: "Bot", locations: ["explorer"], Component: AgentsPanel }),
     ),

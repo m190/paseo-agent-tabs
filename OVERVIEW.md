@@ -11,6 +11,7 @@ See which Claude Code or Codex tab needs you. One row per tab, with a state symb
 ## Where it shows
 
 - **Left sidebar**: the list of tabs. Click "Agents" to hide it.
+- **Sidebar view** (Paseo 0.16 and later): the list in place of the workspace list, with the full height of the sidebar. Select "Agents" in Settings → Sidebar → Sidebar view. The setting is for each device, so you can use it only on your phone.
 - **Board**: all tabs as cards with a live preview. Open it with the grid icon.
 - **Right panel**: the same list next to your work. Add it with "+" next to Files.
 - **Header button**: the most urgent state of all tabs. On a phone, it is in the "..." menu.
