@@ -71,6 +71,7 @@ function ListOrNewTab({ theme, navigation, preset, close, scrollsMenu, list }: {
       theme={theme}
       target={newTab.target}
       navigation={navigation}
+      scrolledOutside={scrollsMenu}
       onBack={() => setNewTab(null)}
       close={() => {
         setNewTab(null);
@@ -199,9 +200,9 @@ export function AgentsSidebarView({ theme, layout, active, dismiss }: PluginSide
   return (
     <View style={{ flex: 1 }}>
       <RouteAnchor />
+      {/* No preset project: the sidebar is not part of one workspace, so "+" asks for the project, as the sidebar item does. */}
       <ListOrNewTab
         theme={theme}
-        preset={current}
         // On a phone the view is in a drawer, which closes when a tab opens.
         close={dismiss}
         scrollsMenu

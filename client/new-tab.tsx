@@ -103,10 +103,12 @@ export interface NewTabMenuProps {
   close(): void;
   /** Shows a back button that leaves the menu, when the menu replaces a list in place. */
   onBack?: () => void;
+  /** The surface around the menu scrolls it (sidebar view, panel, board), so the project list has no scroll of its own. */
+  scrolledOutside?: boolean;
 }
 
 /** Opens a new terminal tab: pick the project, optionally type a first prompt, pick the agent. */
-export function NewTabMenu({ theme, target: preset, navigation, close, onBack }: NewTabMenuProps) {
+export function NewTabMenu({ theme, target: preset, navigation, close, onBack, scrolledOutside }: NewTabMenuProps) {
   const { workspaces, groups, hosts } = useCombined();
   const [target, setTarget] = useState<WorkspaceTarget | null>(preset ?? null);
   const { profiles, error: profilesError } = useProfiles(target?.serverId ?? null);
@@ -122,8 +124,9 @@ export function NewTabMenu({ theme, target: preset, navigation, close, onBack }:
   const manyHosts = hosts.length > 1;
   // On a phone the surface around the menu scrolls all of it: the app's sheet, the board, the panel. A list
   // with its own scroll does not work there: on Android it cannot scroll, and the app sizes the sheet from
-  // that list, not from the menu.
+  // that list, not from the menu. A list with its own scroll is only for the desktop popover, which has a fixed size.
   const phone = usePhoneSize();
+  const plainList = phone || scrolledOutside;
 
   const start = async (profile: Profile) => {
     if (!target || busy) return;
@@ -214,7 +217,7 @@ export function NewTabMenu({ theme, target: preset, navigation, close, onBack }:
     return (
       <View style={{ minWidth: 300 }}>
         {heading("New tab in…", onBack)}
-        {phone ? (
+        {plainList ? (
           <View style={LIST_PADDING}>{projects}</View>
         ) : (
           <ScrollView style={{ maxHeight: 420 }} nestedScrollEnabled contentContainerStyle={LIST_PADDING}>

@@ -303,6 +303,7 @@ export function BoardScreen({ theme, layout, navigation }: PluginScreenProps) {
               theme={theme}
               target={newTab.target}
               navigation={navigation}
+              scrolledOutside
               onBack={() => setNewTab(null)}
               close={() => setNewTab(null)}
             />
