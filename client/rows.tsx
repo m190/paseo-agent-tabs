@@ -245,9 +245,15 @@ export function AgentRow({ tab, group, theme, now, showProject, showHost, active
   const [error, setError] = useState<string | null>(null);
   // The × stays mounted and only shows on hover: a press resets the hover state, and an × that unmounts then
   // would lose its own click. Phones have no hover, so their rows use the long press and have no hidden ×.
+  // On web, a Pressable inside a Pressable ends the hover of the outer one, so the × also keeps its own hover.
   const [hovered, setHovered] = useState(false);
+  const [closeHovered, setCloseHovered] = useState(false);
   const phone = usePhoneSize();
   const closeButton = Boolean(onClose) && !closing && (alwaysShowClose || !phone);
+  // An × that unmounts gets no hover-out event, so its hover must not outlive it.
+  useEffect(() => {
+    if (!closeButton) setCloseHovered(false);
+  }, [closeButton]);
   useEffect(() => {
     if (closing !== "busy") return;
     const timer = setTimeout(() => setClosing(null), CLOSING_MS);
@@ -291,7 +297,7 @@ export function AgentRow({ tab, group, theme, now, showProject, showHost, active
         borderRadius: 6,
         borderWidth: 1,
         borderColor: closing ? statusColor("blocked", theme) : selected ? theme.colors.accent : active ? theme.colors.border : "transparent",
-        backgroundColor: active ? theme.colors.surface2 : pressed || hovered ? theme.colors.surface1 : "transparent",
+        backgroundColor: active ? theme.colors.surface2 : pressed || hovered || closeHovered ? theme.colors.surface1 : "transparent",
       })}
     >
       <>
@@ -313,8 +319,10 @@ export function AgentRow({ tab, group, theme, now, showProject, showHost, active
               accessibilityRole="button"
               accessibilityLabel={`Close ${tab.title}`}
               onPress={ask}
+              onHoverIn={() => setCloseHovered(true)}
+              onHoverOut={() => setCloseHovered(false)}
               hitSlop={8}
-              style={{ paddingHorizontal: 2, opacity: alwaysShowClose || hovered ? 1 : 0 }}
+              style={{ paddingHorizontal: 2, opacity: alwaysShowClose || hovered || closeHovered ? 1 : 0 }}
             >
               <Icon name="X" size={compact ? 16 : 13} color={theme.colors.foregroundMuted} />
             </Pressable>
