@@ -85,6 +85,15 @@ test("priority order mixes the hosts", () => {
   assert.deepEqual(orderedEntries(combined.groups, "priority", null).map((entry) => entry.tab.id), ["p1", "a1"]);
 });
 
+test("project order mixes the hosts: same names stand together, in host order", () => {
+  const project = (workspaceId: string, projectName: string): TabGroup => ({ workspaceId, projectName, colorKey: workspaceId, workspaceName: null, tabs: [tab(workspaceId, "idle")] });
+  const combined = combine([list("mac", [project("r", "repos"), project("u", "usefulapi")]), list("pi", [project("q", "repos")])], appHosts);
+  const label = (entries: ReturnType<typeof orderedEntries>) => entries.map((entry) => `${entry.group.hostLabel}/${entry.group.projectName}`);
+  assert.deepEqual(label(orderedEntries(combined.groups, "spaces", null)), ["Mac/repos", "Pi/repos", "Mac/usefulapi"]);
+  const grouped = hostSections(orderedEntries(combined.groups, "spaces", null), combined.hosts, "grouped");
+  assert.deepEqual(grouped.map((section) => label(section.entries)), [["Mac/repos", "Mac/usefulapi"], ["Pi/repos"]]);
+});
+
 test("host sections: one per host when grouped, also for a host without tabs", () => {
   const combined = combine([list("mac", [macGroup]), list("pi", [])], appHosts);
   const entries = orderedEntries(combined.groups, "spaces", null);

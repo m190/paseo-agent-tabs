@@ -30,6 +30,11 @@ export const workspaceInfoSchema = z.object({
 });
 export type WorkspaceInfo = z.infer<typeof workspaceInfoSchema>;
 
+/** By project, then by worktree; the main checkout first. */
+export function compareWorkspaces(a: WorkspaceInfo, b: WorkspaceInfo): number {
+  return a.projectName.localeCompare(b.projectName) || (a.workspaceName ?? "").localeCompare(b.workspaceName ?? "");
+}
+
 export const tabGroupSchema = workspaceInfoSchema.extend({
   tabs: z.array(tabSchema),
 });

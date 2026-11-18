@@ -1,5 +1,5 @@
 import { errorMessage, mapLimit, withTimeout } from "../shared/async";
-import type { Tab, TabGroup, TabList, TabStatus, WorkspaceInfo } from "../shared/tabs";
+import { compareWorkspaces, type Tab, type TabGroup, type TabList, type TabStatus, type WorkspaceInfo } from "../shared/tabs";
 import { type HostDaemon, type RawAgent, type RawProject, type RawTerminal, type RawWorkspace } from "./host-daemon";
 import { trimPreview } from "./preview";
 import { agentName, agentStatus, cleanTitle, FOOTER_LINES, type ProfileIdentity, terminalAgent, terminalStatus } from "./status";
@@ -310,11 +310,8 @@ export function workspaceInfo(workspaceId: string, workspace: RawWorkspace | und
   };
 }
 
-/** By project, then by worktree; the main checkout first. */
 export function sortWorkspaces<T extends WorkspaceInfo>(items: T[]): T[] {
-  return items.sort(
-    (a, b) => a.projectName.localeCompare(b.projectName) || (a.workspaceName ?? "").localeCompare(b.workspaceName ?? ""),
-  );
+  return items.sort(compareWorkspaces);
 }
 
 /** Tabs by workspace, in workspace order. */

@@ -1,5 +1,5 @@
 // Pure functions over the tab list: identity, counts, order. No React and no styling.
-import type { Tab, TabGroup, TabList, TabStatus, WorkspaceInfo } from "../shared/tabs";
+import { compareWorkspaces, type Tab, type TabGroup, type TabList, type TabStatus, type WorkspaceInfo } from "../shared/tabs";
 import type { View } from "../shared/view-settings";
 
 /** herdr's priority order: blocked first. */
@@ -137,9 +137,13 @@ export function rollup(tabs: readonly Tab[]): TabStatus {
   return PRIORITY.find((status) => present.has(status)) ?? "unknown";
 }
 
-/** Tabs in display order: by workspace, or by priority and then the most recent status change. */
+/**
+ * Tabs in display order: by project across all hosts (same names on different hosts stand together, in host
+ * order), or by priority and then the most recent status change.
+ */
 export function orderedEntries(groups: readonly HostGroup[], sort: SortMode, filter: TabStatus | null): TabEntry[] {
-  const entries = groups.flatMap((group) => group.tabs.map((tab) => ({ tab, group })));
+  const byProject = [...groups].sort(compareWorkspaces);
+  const entries = byProject.flatMap((group) => group.tabs.map((tab) => ({ tab, group })));
   const filtered = filter ? entries.filter((entry) => entry.tab.status === filter) : entries;
   if (sort === "spaces") return filtered;
   return [...filtered].sort(
